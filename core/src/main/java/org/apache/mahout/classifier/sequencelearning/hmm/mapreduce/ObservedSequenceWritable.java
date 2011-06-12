@@ -2,6 +2,7 @@ package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import org.apache.commons.lang.NullArgumentException;
 import org.apache.hadoop.io.WritableComparable;
+import org.apache.mahout.math.VarIntWritable;
 
 import java.io.DataInput;
 import java.io.DataOutput;
@@ -63,17 +64,24 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
 
     @Override
     public void write(DataOutput dataOutput) throws IOException {
-        dataOutput.writeInt(data.length);
-        for (int i = 0; i < data.length; ++i)
-            dataOutput.writeInt(data[i]);
+        final VarIntWritable value = new VarIntWritable(getLength());
+        value.write(dataOutput);
+        for (int i = 0; i < data.length; ++i) {
+            value.set(data[i]);
+            value.write(dataOutput);
+        }
     }
 
     @Override
     public void readFields(DataInput dataInput) throws IOException {
-        final int length = dataInput.readInt();
+        final VarIntWritable value = new VarIntWritable();
+        value.readFields(dataInput);
+        final int length = value.get();
         final int[] data = new int[length];
-        for (int i = 0; i < length; ++i)
-            data[i] = dataInput.readInt();
+        for (int i = 0; i < length; ++i) {
+            value.readFields(dataInput);
+            data[i] = value.get();
+        }
     }
 
     @Override

@@ -1,4 +1,4 @@
-package org.apache.mahout.classifier.sequencelearning.hmm;
+package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import org.apache.commons.cli2.CommandLine;
 import org.apache.commons.cli2.Group;
@@ -9,8 +9,12 @@ import org.apache.commons.cli2.builder.DefaultOptionBuilder;
 import org.apache.commons.cli2.builder.GroupBuilder;
 import org.apache.commons.cli2.commandline.Parser;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.*;
-import org.apache.hadoop.util.Progressable;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Text;
 import org.apache.mahout.common.CommandLineUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +23,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
@@ -74,6 +79,8 @@ public final class PrepareChunks {
                 final Path inputPath = new Path(input);
                 inputFS.listStatus(inputPath, chunkSplitter);
             }
+
+            chunkSplitter.close();
         } catch (OptionException e) {
             CommandLineUtil.printHelp(group);
         }
@@ -84,6 +91,7 @@ public final class PrepareChunks {
         Path outputPath;
         Configuration configuration;
         FileSystem outputFileSystem;
+        List<SequenceFile.Writer> outputs = new ArrayList<SequenceFile.Writer>();
 
         public ChunkSplitter(int chunkSize, Path outputPath, Configuration configuration) throws IOException {
             this.chunkSize = chunkSize;
@@ -101,7 +109,14 @@ public final class PrepareChunks {
             final BufferedReader reader = new BufferedReader(new InputStreamReader(in));
             final Scanner scanner = new Scanner(reader);
 
-            for (int currentChunk = 1; ; ++currentChunk) {
+            for (int currentChunk = 0; ; ++currentChunk) {
+                if (outputs.size() <= currentChunk) {
+                    log.debug("Opening new sequence file for chunk #" + currentChunk);
+                    final SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
+                            new Path(outputPath, ((Integer)currentChunk).toString()),
+                            Text.class, GenericViterbiData.class);
+                    outputs.add(writer);
+                }
                 log.info("Splitting " + inputName + ", chunk #" + currentChunk);
                 final int[] chunkObservations = new int[chunkSize];
                 int observationsRead;
@@ -110,20 +125,12 @@ public final class PrepareChunks {
                     chunkObservations[observationsRead] = scanner.nextInt();
                 }
 
-                final Path chunkPath = new Path(outputPath, currentChunk + "/" + inputName);
-                FSDataOutputStream out = outputFileSystem.create(chunkPath, new Progressable() {
-                    @Override
-                    public void progress() {
-                        if (log.isInfoEnabled())
-                            log.info("Writing chunk for " + chunkPath.getName());
-                    }
-                });
-
-                for (int i = 0; i < observationsRead; ++i)
-                    out.writeInt(chunkObservations[i]);
+                final ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations.length);
+                chunk.assign(chunkObservations);
 
                 log.info(observationsRead + " observations to write to this chunk");
-                out.close();
+                outputs.get(currentChunk).append(new Text(inputPath.getName()),
+                        GenericViterbiData.fromObservedSequence(chunk));
 
                 if (observationsRead < chunkSize)
                     break;
@@ -145,6 +152,12 @@ public final class PrepareChunks {
                 e.printStackTrace();
             }
             return true;
+        }
+
+        public void close() throws IOException {
+            for (SequenceFile.Writer output: outputs) {
+                output.close();
+            }
         }
     }
 }
