@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Ordering;
+import com.google.common.io.Closeables;
 import com.google.common.io.Files;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
@@ -121,7 +122,7 @@ public final class TrainNewsGroups {
     new SimpleDateFormat("dd-MMM-yyyy HH:mm:ss", Locale.ENGLISH)
   };
 
-  private static final Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_30);
+  private static final Analyzer analyzer = new StandardAnalyzer(Version.LUCENE_31);
   private static final FeatureVectorEncoder encoder = new StaticWordValueEncoder("body");
   private static final FeatureVectorEncoder bias = new ConstantValueEncoder("Intercept");
   private static Multiset<String> overallCounts;
@@ -306,7 +307,7 @@ public final class TrainNewsGroups {
         countWords(analyzer, words, reader);
       }
     } finally {
-      reader.close();
+      Closeables.closeQuietly(reader);
     }
 
     Vector v = new RandomAccessSparseVector(FEATURES);
@@ -319,8 +320,9 @@ public final class TrainNewsGroups {
   }
 
   private static void countWords(Analyzer analyzer, Collection<String> words, Reader in) throws IOException {
-    TokenStream ts = analyzer.tokenStream("text", in);
+    TokenStream ts = analyzer.reusableTokenStream("text", in);
     ts.addAttribute(CharTermAttribute.class);
+    ts.reset();
     while (ts.incrementToken()) {
       String s = ts.getAttribute(CharTermAttribute.class).toString();
       words.add(s);

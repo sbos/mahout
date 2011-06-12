@@ -27,12 +27,12 @@ import java.net.URL;
 import java.util.regex.Pattern;
 
 import com.google.common.base.Charsets;
+import com.google.common.io.Closeables;
 import com.google.common.io.Files;
 import com.google.common.io.InputSupplier;
 import com.google.common.io.Resources;
 import org.apache.mahout.cf.taste.impl.model.file.FileDataModel;
 import org.apache.mahout.common.iterator.FileLineIterable;
-import org.apache.mahout.common.IOUtils;
 
 public final class GroupLensDataModel extends FileDataModel {
   
@@ -69,12 +69,11 @@ public final class GroupLensDataModel extends FileDataModel {
         String convertedLine = COLON_DELIMITER_PATTERN.matcher(subLine).replaceAll(",");
         writer.println(convertedLine);
       }
-      writer.flush();
     } catch (IOException ioe) {
       resultFile.delete();
       throw ioe;
     } finally {
-      IOUtils.quietClose(writer);
+      Closeables.closeQuietly(writer);
     }
     return resultFile;
   }

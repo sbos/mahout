@@ -19,13 +19,13 @@ package org.apache.mahout.classifier.bayes;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import com.google.common.collect.Lists;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.DefaultStringifier;
@@ -67,8 +67,9 @@ public class WikipediaDatasetCreatorMapper extends Mapper<LongWritable, Text, Te
       StringBuilder contents = new StringBuilder(1000);
       document = StringEscapeUtils.unescapeHtml(WikipediaDatasetCreatorMapper.CLOSE_TEXT_TAG_PATTERN.matcher(
           WikipediaDatasetCreatorMapper.OPEN_TEXT_TAG_PATTERN.matcher(document).replaceFirst("")).replaceAll(""));
-      TokenStream stream = analyzer.tokenStream(catMatch, new StringReader(document));
+      TokenStream stream = analyzer.reusableTokenStream(catMatch, new StringReader(document));
       CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
+      stream.reset();
       while (stream.incrementToken()) {
         contents.append(termAtt.buffer(), 0, termAtt.length()).append(' ');
       }
@@ -90,8 +91,8 @@ public class WikipediaDatasetCreatorMapper extends Mapper<LongWritable, Text, Te
           new DefaultStringifier<Set<String>>(conf, GenericsUtil.getClass(newCategories));
       String categoriesStr = conf.get("wikipedia.categories", setStringifier.toString(newCategories));
       Set<String> inputCategoriesSet = setStringifier.fromString(categoriesStr);
-      inputCategories = new ArrayList<String>(inputCategoriesSet);
-      inputCategoryPatterns = new ArrayList<Pattern>(inputCategories.size());
+      inputCategories = Lists.newArrayList(inputCategoriesSet);
+      inputCategoryPatterns = Lists.newArrayListWithCapacity(inputCategories.size());
       for (String inputCategory : inputCategories) {
         inputCategoryPatterns.add(Pattern.compile(".*\\b" + inputCategory + "\\b.*"));
       }

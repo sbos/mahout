@@ -17,6 +17,7 @@
 
 package org.apache.mahout.math.hadoop.decomposer;
 
+import com.google.common.collect.Lists;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.mahout.common.MahoutTestCase;
@@ -32,7 +33,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Arrays;
 
@@ -43,7 +43,7 @@ public final class TestDistributedLanczosSolverCLI extends MahoutTestCase {
   public void testDistributedLanczosSolverCLI() throws Exception {
     Path testData = getTestTempDirPath("testdata");
     DistributedRowMatrix corpus =
-        new TestDistributedRowMatrix().randomDenseHierarchicalDistributedMatrix(50, 45, false,
+        new TestDistributedRowMatrix().randomDenseHierarchicalDistributedMatrix(10, 9, false,
             testData.toString());
     corpus.setConf(new Configuration());
     Path output = getTestTempDirPath("output");
@@ -53,9 +53,9 @@ public final class TestDistributedLanczosSolverCLI extends MahoutTestCase {
         "-i", new Path(testData, "distMatrix").toString(),
         "-o", output.toString(),
         "--tempDir", tmp.toString(),
-        "--numRows", "50",
-        "--numCols", "45",
-        "--rank", "30",
+        "--numRows", "10",
+        "--numCols", "9",
+        "--rank", "6",
         "--symmetric", "false",
         "--workingDir", workingDir.toString()
     };
@@ -67,16 +67,16 @@ public final class TestDistributedLanczosSolverCLI extends MahoutTestCase {
         "-i", new Path(testData, "distMatrix").toString(),
         "-o", output.toString(),
         "--tempDir", tmp.toString(),
-        "--numRows", "50",
-        "--numCols", "45",
-        "--rank", "35",
+        "--numRows", "10",
+        "--numCols", "9",
+        "--rank", "7",
         "--symmetric", "false",
         "--workingDir", workingDir.toString()
     };
     new DistributedLanczosSolver().new DistributedLanczosSolverJob().run(args);
 
     Path rawEigenvectors = new Path(output, DistributedLanczosSolver.RAW_EIGENVECTORS);
-    Matrix eigenVectors = new DenseMatrix(35, corpus.numCols());
+    Matrix eigenVectors = new DenseMatrix(7, corpus.numCols());
     Configuration conf = new Configuration();
 
     int i = 0;
@@ -85,14 +85,14 @@ public final class TestDistributedLanczosSolverCLI extends MahoutTestCase {
       eigenVectors.assignRow(i, v);
       i++;
     }
-    assertEquals("number of eigenvectors", 35, i);
+    assertEquals("number of eigenvectors", 7, i);
   }
 
   @Test
   public void testDistributedLanczosSolverEVJCLI() throws Exception {
     Path testData = getTestTempDirPath("testdata");
     DistributedRowMatrix corpus = new TestDistributedRowMatrix()
-        .randomDenseHierarchicalDistributedMatrix(50, 45, false, testData.toString());
+        .randomDenseHierarchicalDistributedMatrix(10, 9, false, testData.toString());
     corpus.setConf(new Configuration());
     Path output = getTestTempDirPath("output");
     Path tmp = getTestTempDirPath("tmp");
@@ -100,17 +100,17 @@ public final class TestDistributedLanczosSolverCLI extends MahoutTestCase {
         "-i", new Path(testData, "distMatrix").toString(),
         "-o", output.toString(),
         "--tempDir", tmp.toString(),
-        "--numRows", "50",
-        "--numCols", "45",
-        "--rank", "30",
+        "--numRows", "10",
+        "--numCols", "9",
+        "--rank", "6",
         "--symmetric", "false",
         "--cleansvd", "true"
     };
     new DistributedLanczosSolver().new DistributedLanczosSolverJob().run(args);
   
     Path cleanEigenvectors = new Path(output, EigenVerificationJob.CLEAN_EIGENVECTORS);
-    Matrix eigenVectors = new DenseMatrix(30, corpus.numCols());
-    Collection<Double> eigenvalues = new ArrayList<Double>();
+    Matrix eigenVectors = new DenseMatrix(6, corpus.numCols());
+    Collection<Double> eigenvalues = Lists.newArrayList();
 
     output = getTestTempDirPath("output2");
     tmp = getTestTempDirPath("tmp2");
@@ -118,29 +118,29 @@ public final class TestDistributedLanczosSolverCLI extends MahoutTestCase {
         "-i", new Path(testData, "distMatrix").toString(),
         "-o", output.toString(),
         "--tempDir", tmp.toString(),
-        "--numRows", "50",
-        "--numCols", "45",
-        "--rank", "35",
+        "--numRows", "10",
+        "--numCols", "9",
+        "--rank", "7",
         "--symmetric", "false",
         "--cleansvd", "true"
     };
     new DistributedLanczosSolver().new DistributedLanczosSolverJob().run(args);
     Path cleanEigenvectors2 = new Path(output, EigenVerificationJob.CLEAN_EIGENVECTORS);
-    Matrix eigenVectors2 = new DenseMatrix(35, corpus.numCols());
+    Matrix eigenVectors2 = new DenseMatrix(7, corpus.numCols());
     Configuration conf = new Configuration();
-    Collection<Double> newEigenValues = new ArrayList<Double>();
+    Collection<Double> newEigenValues = Lists.newArrayList();
 
     int i = 0;
     for (VectorWritable value : new SequenceFileValueIterable<VectorWritable>(cleanEigenvectors, conf)) {
       NamedVector v = (NamedVector) value.get();
       eigenVectors.assignRow(i, v);
       log.info(v.getName());
-      if(EigenVector.getCosAngleError(v.getName()) < 1e-3) {
+      if(EigenVector.getCosAngleError(v.getName()) < 1.0e-3) {
         eigenvalues.add(EigenVector.getEigenValue(v.getName()));
       }
       i++;
     }
-    assertEquals("number of clean eigenvectors", 23, i);
+    assertEquals("number of clean eigenvectors", 3, i);
 
     i = 0;
     for (VectorWritable value : new SequenceFileValueIterable<VectorWritable>(cleanEigenvectors2, conf)) {
@@ -151,7 +151,7 @@ public final class TestDistributedLanczosSolverCLI extends MahoutTestCase {
       i++;
     }
 
-    Collection<Integer> oldEigensFound = new ArrayList<Integer>();
+    Collection<Integer> oldEigensFound = Lists.newArrayList();
     for(int row = 0; row < eigenVectors.numRows(); row++) {
       Vector oldEigen = eigenVectors.getRow(row);
       if(oldEigen == null) {
@@ -167,9 +167,9 @@ public final class TestDistributedLanczosSolverCLI extends MahoutTestCase {
         }
       }
     }
-    assertEquals("the number of new eigenvectors", 30, i);
+    assertEquals("the number of new eigenvectors", 5, i);
 
-    Collection<Double> oldEigenValuesNotFound = new ArrayList<Double>();
+    Collection<Double> oldEigenValuesNotFound = Lists.newArrayList();
     for(double d : eigenvalues) {
       boolean found = false;
       for(double newD : newEigenValues) {
@@ -184,7 +184,7 @@ public final class TestDistributedLanczosSolverCLI extends MahoutTestCase {
     assertEquals("number of old eigenvalues not found: "
                  + Arrays.toString(oldEigenValuesNotFound.toArray(new Double[oldEigenValuesNotFound.size()])),
                 0, oldEigenValuesNotFound.size());
-    assertEquals("did not find enough old eigenvectors", 16, oldEigensFound.size());
+    assertEquals("did not find enough old eigenvectors", 3, oldEigensFound.size());
   }
 
 }

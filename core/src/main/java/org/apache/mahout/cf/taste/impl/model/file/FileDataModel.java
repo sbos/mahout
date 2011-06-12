@@ -20,7 +20,6 @@ package org.apache.mahout.cf.taste.impl.model.file;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
@@ -28,6 +27,8 @@ import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
 
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import org.apache.mahout.cf.taste.common.Refreshable;
 import org.apache.mahout.cf.taste.common.TasteException;
 import org.apache.mahout.cf.taste.impl.common.FastByIDMap;
@@ -155,7 +156,7 @@ public class FileDataModel extends AbstractDataModel {
    * @see #FileDataModel(File)
    */
   public FileDataModel(File dataFile, boolean transpose, long minReloadIntervalMS) throws IOException {
-    Preconditions.checkArgument(dataFile != null, "dataFile is null");
+    this.dataFile = Preconditions.checkNotNull(dataFile.getAbsoluteFile());
     if (!dataFile.exists() || dataFile.isDirectory()) {
       throw new FileNotFoundException(dataFile.toString());
     }
@@ -164,7 +165,6 @@ public class FileDataModel extends AbstractDataModel {
 
     log.info("Creating FileDataModel for file {}", dataFile);
 
-    this.dataFile = dataFile.getAbsoluteFile();
     this.lastModified = dataFile.lastModified();
     this.lastUpdateFileModified = readLastUpdateFileModified();
 
@@ -174,7 +174,7 @@ public class FileDataModel extends AbstractDataModel {
       iterator.next();
       firstLine = iterator.peek();
     }
-    iterator.close();
+    Closeables.closeQuietly(iterator);
 
     delimiter = determineDelimiter(firstLine);
     delimiterPattern = Pattern.compile(String.valueOf(delimiter));
@@ -494,7 +494,7 @@ public class FileDataModel extends AbstractDataModel {
 
         if (!exists) {
           if (prefs == null) {
-            prefs = new ArrayList<Preference>(2);
+            prefs = Lists.newArrayListWithCapacity(2);
             ((FastByIDMap<Collection<Preference>>) data).put(userID, prefs);
           }
           prefs.add(new GenericPreference(userID, itemID, preferenceValue));

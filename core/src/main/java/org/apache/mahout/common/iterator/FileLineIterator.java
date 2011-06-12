@@ -30,8 +30,8 @@ import java.util.zip.ZipInputStream;
 
 import com.google.common.base.Charsets;
 import com.google.common.collect.AbstractIterator;
+import com.google.common.io.Closeables;
 import org.apache.mahout.cf.taste.impl.common.SkippingIterator;
-import org.apache.mahout.common.IOUtils;
 
 /**
  * Iterates over the lines of a text file. This assumes the text file's lines are delimited in a manner
@@ -135,7 +135,7 @@ public final class FileLineIterator extends AbstractIterator<String> implements 
   @Override
   public void close() {
     endOfData();
-    IOUtils.quietClose(reader);
+    Closeables.closeQuietly(reader);
   }
   
 }

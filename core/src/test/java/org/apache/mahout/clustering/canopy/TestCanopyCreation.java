@@ -17,13 +17,14 @@
 
 package org.apache.mahout.clustering.canopy;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
 
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -72,7 +73,7 @@ public final class TestCanopyCreation extends MahoutTestCase {
   private FileSystem fs;
 
   private static List<VectorWritable> getPointsWritable() {
-    List<VectorWritable> points = new ArrayList<VectorWritable>();
+    List<VectorWritable> points = Lists.newArrayList();
     for (double[] fr : RAW) {
       Vector vec = new RandomAccessSparseVector(fr.length);
       vec.assign(fr);
@@ -82,7 +83,7 @@ public final class TestCanopyCreation extends MahoutTestCase {
   }
 
   private static List<Vector> getPoints() {
-    List<Vector> points = new ArrayList<Vector>();
+    List<Vector> points = Lists.newArrayList();
     for (double[] fr : RAW) {
       Vector vec = new RandomAccessSparseVector(fr.length);
       vec.assign(fr);
@@ -332,20 +333,23 @@ public final class TestCanopyCreation extends MahoutTestCase {
     Path path = new Path(output, "clusters-0/part-r-00000");
     FileSystem fs = FileSystem.get(path.toUri(), config);
     SequenceFile.Reader reader = new SequenceFile.Reader(fs, path, config);
-    Writable key = new Text();
-    Canopy canopy = new Canopy();
-    assertTrue("more to come", reader.next(key, canopy));
-    assertEquals("1st key", "C-0", key.toString());
-    assertEquals("1st x value", 1.5, canopy.getCenter().get(0), EPSILON);
-    assertEquals("1st y value", 1.5, canopy.getCenter().get(1), EPSILON);
-    assertTrue("more to come", reader.next(key, canopy));
-    assertEquals("2nd key", "C-1", key.toString());
-    assertEquals("2nd x value", 4.333333333333334, canopy.getCenter().get(0),
-        EPSILON);
-    assertEquals("2nd y value", 4.333333333333334, canopy.getCenter().get(1),
-        EPSILON);
-    assertFalse("more to come", reader.next(key, canopy));
-    reader.close();
+    try {
+      Writable key = new Text();
+      Canopy canopy = new Canopy();
+      assertTrue("more to come", reader.next(key, canopy));
+      assertEquals("1st key", "C-0", key.toString());
+      assertEquals("1st x value", 1.5, canopy.getCenter().get(0), EPSILON);
+      assertEquals("1st y value", 1.5, canopy.getCenter().get(1), EPSILON);
+      assertTrue("more to come", reader.next(key, canopy));
+      assertEquals("2nd key", "C-1", key.toString());
+      assertEquals("2nd x value", 4.333333333333334, canopy.getCenter().get(0),
+          EPSILON);
+      assertEquals("2nd y value", 4.333333333333334, canopy.getCenter().get(1),
+          EPSILON);
+      assertFalse("more to come", reader.next(key, canopy));
+    } finally {
+      Closeables.closeQuietly(reader);
+    }
   }
 
   /**
@@ -369,20 +373,23 @@ public final class TestCanopyCreation extends MahoutTestCase {
     Path path = new Path(output, "clusters-0/part-r-00000");
     FileSystem fs = FileSystem.get(path.toUri(), config);
     SequenceFile.Reader reader = new SequenceFile.Reader(fs, path, config);
-    Writable key = new Text();
-    Canopy value = new Canopy();
-    assertTrue("more to come", reader.next(key, value));
-    assertEquals("1st key", "C-0", key.toString());
-    assertEquals("1st x value", 1.8, value.getCenter().get(0), EPSILON);
-    assertEquals("1st y value", 1.8, value.getCenter().get(1), EPSILON);
-    assertTrue("more to come", reader.next(key, value));
-    assertEquals("2nd key", "C-1", key.toString());
-    assertEquals("2nd x value", 4.433333333333334, value.getCenter().get(0),
-        EPSILON);
-    assertEquals("2nd y value", 4.433333333333334, value.getCenter().get(1),
-        EPSILON);
-    assertFalse("more to come", reader.next(key, value));
-    reader.close();
+    try {
+      Writable key = new Text();
+      Canopy value = new Canopy();
+      assertTrue("more to come", reader.next(key, value));
+      assertEquals("1st key", "C-0", key.toString());
+      assertEquals("1st x value", 1.8, value.getCenter().get(0), EPSILON);
+      assertEquals("1st y value", 1.8, value.getCenter().get(1), EPSILON);
+      assertTrue("more to come", reader.next(key, value));
+      assertEquals("2nd key", "C-1", key.toString());
+      assertEquals("2nd x value", 4.433333333333334, value.getCenter().get(0),
+          EPSILON);
+      assertEquals("2nd y value", 4.433333333333334, value.getCenter().get(1),
+          EPSILON);
+      assertFalse("more to come", reader.next(key, value));
+    } finally {
+      Closeables.closeQuietly(reader);
+    }
   }
 
   /**
@@ -403,13 +410,13 @@ public final class TestCanopyCreation extends MahoutTestCase {
         DummyRecordWriter.build(mapper, conf, writer);
     mapper.setup(context);
 
-    Collection<Canopy> canopies = new ArrayList<Canopy>();
+    Collection<Canopy> canopies = Lists.newArrayList();
     int nextCanopyId = 0;
     for (Vector centroid : manhattanCentroids) {
       canopies.add(new Canopy(centroid, nextCanopyId++,
           manhattanDistanceMeasure));
     }
-    mapper.config(canopies);
+    setField(mapper, "canopies", canopies);
     List<VectorWritable> points = getPointsWritable();
     // map the data
     for (VectorWritable point : points) {
@@ -446,13 +453,14 @@ public final class TestCanopyCreation extends MahoutTestCase {
         .build(mapper, conf, writer);
     mapper.setup(context);
 
-    Collection<Canopy> canopies = new ArrayList<Canopy>();
+    Collection<Canopy> canopies = Lists.newArrayList();
     int nextCanopyId = 0;
     for (Vector centroid : euclideanCentroids) {
       canopies.add(new Canopy(centroid, nextCanopyId++,
           euclideanDistanceMeasure));
     }
-    mapper.config(canopies);
+
+    setField(mapper, "canopies", canopies);
     List<VectorWritable> points = getPointsWritable();
     // map the data
     for (VectorWritable point : points) {
@@ -610,22 +618,25 @@ public final class TestCanopyCreation extends MahoutTestCase {
     Path path = new Path(output, "clusters-0/part-r-00000");
     FileSystem fs = FileSystem.get(path.toUri(), job);
     SequenceFile.Reader reader = new SequenceFile.Reader(fs, path, job);
-    Writable key = new Text();
-    Canopy value = new Canopy();
-    assertTrue("more to come", reader.next(key, value));
-    assertEquals("1st key", "C-0", key.toString());
+    try {
+      Writable key = new Text();
+      Canopy value = new Canopy();
+      assertTrue("more to come", reader.next(key, value));
+      assertEquals("1st key", "C-0", key.toString());
 
-    assertEquals("1st x value", 1.5, value.getCenter().get(0), EPSILON);
-    assertEquals("1st y value", 1.5, value.getCenter().get(1), EPSILON);
-    assertTrue("more to come", reader.next(key, value));
-    assertEquals("2nd key", "C-1", key.toString());
+      assertEquals("1st x value", 1.5, value.getCenter().get(0), EPSILON);
+      assertEquals("1st y value", 1.5, value.getCenter().get(1), EPSILON);
+      assertTrue("more to come", reader.next(key, value));
+      assertEquals("2nd key", "C-1", key.toString());
 
-    assertEquals("1st x value", 4.333333333333334, value.getCenter().get(0),
-        EPSILON);
-    assertEquals("1st y value", 4.333333333333334, value.getCenter().get(1),
-        EPSILON);
-    assertFalse("more to come", reader.next(key, value));
-    reader.close();
+      assertEquals("1st x value", 4.333333333333334, value.getCenter().get(0),
+          EPSILON);
+      assertEquals("1st y value", 4.333333333333334, value.getCenter().get(1),
+          EPSILON);
+      assertFalse("more to come", reader.next(key, value));
+    } finally {
+      Closeables.closeQuietly(reader);
+    }
   }
 
   /**

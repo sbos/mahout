@@ -18,6 +18,9 @@
 package org.apache.mahout.clustering.minhash;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
 import com.google.common.io.Files;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -31,8 +34,6 @@ import org.apache.mahout.math.VectorWritable;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -95,8 +96,8 @@ public final class LastfmDataConverter {
    */
   public static Map<String, List<Integer>> convertToItemFeatures(String inputFile, Lastfm dataSet) throws IOException {
     long totalRecords = dataSet.totalRecords;
-    Map<String, Integer> featureIdxMap = new HashMap<String, Integer>();
-    Map<String, List<Integer>> itemFeaturesMap = new HashMap<String, List<Integer>>();
+    Map<String, Integer> featureIdxMap = Maps.newHashMap();
+    Map<String, List<Integer>> itemFeaturesMap = Maps.newHashMap();
     String msg = usedMemory() + "Converting data to internal vector format: ";
     BufferedReader br = Files.newReader(new File(inputFile), Charsets.UTF_8);
     try {
@@ -118,7 +119,7 @@ public final class LastfmDataConverter {
         // add it to the corresponding feature idx map
         List<Integer> features = itemFeaturesMap.get(item);
         if (features == null) {
-          features = new ArrayList<Integer>();
+          features = Lists.newArrayList();
           itemFeaturesMap.put(item, features);
         }
         features.add(featureIdx);
@@ -135,7 +136,7 @@ public final class LastfmDataConverter {
       msg = usedMemory() + "Converting data to internal vector format: ";
       System.out.print('\r' + msg + percentDone + "% Completed\n");
     } finally {
-      br.close();
+      Closeables.closeQuietly(br);
     }
     return itemFeaturesMap;
   }
@@ -179,7 +180,7 @@ public final class LastfmDataConverter {
         }
       }
     } finally {
-      writer.close();
+      Closeables.closeQuietly(writer);
     }
     return true;
   }

@@ -18,10 +18,10 @@
 package org.apache.mahout.clustering;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.lang.NotImplementedException;
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -44,7 +44,7 @@ import org.junit.Test;
 public final class TestClusterClassifier extends MahoutTestCase {
   
   private static ClusterClassifier newDMClassifier() {
-    List<Cluster> models = new ArrayList<Cluster>();
+    List<Cluster> models = Lists.newArrayList();
     DistanceMeasure measure = new ManhattanDistanceMeasure();
     models.add(new DistanceMeasureCluster(new DenseVector(2).assign(1), 0,
         measure));
@@ -55,7 +55,7 @@ public final class TestClusterClassifier extends MahoutTestCase {
   }
   
   private static ClusterClassifier newClusterClassifier() {
-    List<Cluster> models = new ArrayList<Cluster>();
+    List<Cluster> models = Lists.newArrayList();
     DistanceMeasure measure = new ManhattanDistanceMeasure();
     models.add(new org.apache.mahout.clustering.kmeans.Cluster(new DenseVector(
         2).assign(1), 0, measure));
@@ -67,7 +67,7 @@ public final class TestClusterClassifier extends MahoutTestCase {
   }
   
   private static ClusterClassifier newSoftClusterClassifier() {
-    List<Cluster> models = new ArrayList<Cluster>();
+    List<Cluster> models = Lists.newArrayList();
     DistanceMeasure measure = new ManhattanDistanceMeasure();
     models.add(new SoftCluster(new DenseVector(2).assign(1), 0, measure));
     models.add(new SoftCluster(new DenseVector(2), 1, measure));
@@ -76,7 +76,7 @@ public final class TestClusterClassifier extends MahoutTestCase {
   }
   
   private static ClusterClassifier newGaussianClassifier() {
-    List<Cluster> models = new ArrayList<Cluster>();
+    List<Cluster> models = Lists.newArrayList();
     models.add(new GaussianCluster(new DenseVector(2).assign(1),
         new DenseVector(2).assign(1), 0));
     models.add(new GaussianCluster(new DenseVector(2), new DenseVector(2)
@@ -102,8 +102,11 @@ public final class TestClusterClassifier extends MahoutTestCase {
     SequenceFile.Writer writer = new SequenceFile.Writer(fs, config, path,
         Text.class, ClusterClassifier.class);
     Writable key = new Text("test");
-    writer.append(key, classifier);
-    writer.close();
+    try {
+      writer.append(key, classifier);
+    } finally {
+      Closeables.closeQuietly(writer);
+    }
   }
   
   private static ClusterClassifier readClassifier(Configuration config,
@@ -112,8 +115,11 @@ public final class TestClusterClassifier extends MahoutTestCase {
     SequenceFile.Reader reader = new SequenceFile.Reader(fs, path, config);
     Writable key = new Text();
     ClusterClassifier classifierOut = new ClusterClassifier();
-    reader.next(key, classifierOut);
-    reader.close();
+    try {
+      reader.next(key, classifierOut);
+    } finally {
+      Closeables.closeQuietly(reader);
+    }
     return classifierOut;
   }
   
@@ -130,7 +136,7 @@ public final class TestClusterClassifier extends MahoutTestCase {
   
   @Test
   public void testCanopyClassification() {
-    List<Cluster> models = new ArrayList<Cluster>();
+    List<Cluster> models = Lists.newArrayList();
     DistanceMeasure measure = new ManhattanDistanceMeasure();
     models.add(new Canopy(new DenseVector(2).assign(1), 0, measure));
     models.add(new Canopy(new DenseVector(2), 1, measure));
@@ -155,18 +161,15 @@ public final class TestClusterClassifier extends MahoutTestCase {
         AbstractCluster.formatVector(pdf, null));
   }
   
-  @Test
+  @Test(expected = UnsupportedOperationException.class)
   public void testMSCanopyClassification() {
-    List<Cluster> models = new ArrayList<Cluster>();
+    List<Cluster> models = Lists.newArrayList();
     DistanceMeasure measure = new ManhattanDistanceMeasure();
     models.add(new MeanShiftCanopy(new DenseVector(2).assign(1), 0, measure));
     models.add(new MeanShiftCanopy(new DenseVector(2), 1, measure));
     models.add(new MeanShiftCanopy(new DenseVector(2).assign(-1), 2, measure));
     ClusterClassifier classifier = new ClusterClassifier(models);
-    try {
-      classifier.classify(new DenseVector(2));
-      fail("Expected NotImplementedException");
-    } catch (NotImplementedException e) {}
+    classifier.classify(new DenseVector(2));
   }
   
   @Test

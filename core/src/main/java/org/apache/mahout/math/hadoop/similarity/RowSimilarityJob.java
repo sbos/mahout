@@ -18,12 +18,13 @@
 package org.apache.mahout.math.hadoop.similarity;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
@@ -32,7 +33,6 @@ import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.partition.HashPartitioner;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.common.AbstractJob;
 import org.apache.mahout.math.RandomAccessSparseVector;
@@ -119,10 +119,9 @@ public class RowSimilarityJob extends AbstractJob {
 
     Path inputPath = getInputPath();
     Path outputPath = getOutputPath();
-    Path tempDirPath = new Path(parsedArgs.get("--tempDir"));
 
-    Path weightsPath = new Path(tempDirPath, "weights");
-    Path pairwiseSimilarityPath = new Path(tempDirPath, "pairwiseSimilarity");
+    Path weightsPath = getTempPath("weights");
+    Path pairwiseSimilarityPath = getTempPath("pairwiseSimilarity");
 
     AtomicInteger currentPhase = new AtomicInteger();
 
@@ -137,7 +136,6 @@ public class RowSimilarityJob extends AbstractJob {
                                VarIntWritable.class,
                                WeightedOccurrenceArray.class,
                                SequenceFileOutputFormat.class);
-
       weights.getConfiguration().set(DISTRIBUTED_SIMILARITY_CLASSNAME, distributedSimilarityClassname);
       weights.waitForCompletion(true);
     }
@@ -171,7 +169,6 @@ public class RowSimilarityJob extends AbstractJob {
                                IntWritable.class,
                                VectorWritable.class,
                                SequenceFileOutputFormat.class);
-      asMatrix.setPartitionerClass(HashPartitioner.class);
       asMatrix.setGroupingComparatorClass(SimilarityMatrixEntryKey.SimilarityMatrixEntryKeyGroupingComparator.class);
       asMatrix.getConfiguration().setInt(MAX_SIMILARITIES_PER_ROW, maxSimilaritiesPerRow);
       asMatrix.waitForCompletion(true);
@@ -232,7 +229,7 @@ public class RowSimilarityJob extends AbstractJob {
     protected void reduce(VarIntWritable column, Iterable<WeightedOccurrence> weightedOccurrences, Context ctx)
       throws IOException, InterruptedException {
 
-      List<WeightedOccurrence> collectedWeightedOccurrences = new ArrayList<WeightedOccurrence>();
+      List<WeightedOccurrence> collectedWeightedOccurrences = Lists.newArrayList();
       for (WeightedOccurrence weightedOccurrence : weightedOccurrences) {
         collectedWeightedOccurrences.add(weightedOccurrence.clone());
       }
@@ -284,7 +281,7 @@ public class RowSimilarityJob extends AbstractJob {
    * computes the pairwise similarities
    */
   public static class SimilarityReducer
-      extends Reducer<WeightedRowPair,Cooccurrence,SimilarityMatrixEntryKey, DistributedRowMatrix.MatrixEntryWritable> {
+      extends Reducer<WeightedRowPair,Cooccurrence,SimilarityMatrixEntryKey,DistributedRowMatrix.MatrixEntryWritable> {
 
     private DistributedVectorSimilarity similarity;
     private int numberOfColumns;
@@ -294,9 +291,8 @@ public class RowSimilarityJob extends AbstractJob {
       super.setup(ctx);
       similarity = instantiateSimilarity(ctx.getConfiguration().get(DISTRIBUTED_SIMILARITY_CLASSNAME));
       numberOfColumns = ctx.getConfiguration().getInt(NUMBER_OF_COLUMNS, -1);
-      if (numberOfColumns < 1) {
-        throw new IllegalStateException("Number of columns was not correctly set!");
-      }
+
+      Preconditions.checkArgument(numberOfColumns > 0, "Number of columns was not correctly set!");
     }
 
     @Override
@@ -341,9 +337,9 @@ public class RowSimilarityJob extends AbstractJob {
     protected void setup(Context ctx) throws IOException, InterruptedException {
       super.setup(ctx);
       maxSimilaritiesPerRow = ctx.getConfiguration().getInt(MAX_SIMILARITIES_PER_ROW, -1);
-      if (maxSimilaritiesPerRow < 1) {
-        throw new IllegalStateException("Maximum number of similarities per row was not correctly set!");
-      }
+
+      Preconditions.checkArgument(maxSimilaritiesPerRow > 0, "Maximum number of similarities per row was not " +
+          "correctly set!");
     }
 
     @Override

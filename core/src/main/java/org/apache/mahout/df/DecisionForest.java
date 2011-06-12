@@ -17,13 +17,14 @@
 
 package org.apache.mahout.df;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.io.DataInput;
 
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import org.apache.mahout.df.callback.PredictionCallback;
 import org.apache.mahout.df.data.Data;
 import org.apache.mahout.df.data.DataUtils;
@@ -45,7 +46,7 @@ public class DecisionForest implements Writable {
   private final List<Node> trees;
   
   protected DecisionForest() {
-    trees = new ArrayList<Node>();
+    trees = Lists.newArrayList();
   }
   
   public DecisionForest(List<Node> trees) {
@@ -208,7 +209,7 @@ public class DecisionForest implements Writable {
           forest.readFields(dataInput);
         }
       } finally {
-        dataInput.close();
+        Closeables.closeQuietly(dataInput);
       }
     }
 

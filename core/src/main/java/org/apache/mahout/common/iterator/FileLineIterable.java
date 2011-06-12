@@ -42,7 +42,7 @@ public final class FileLineIterable implements Iterable<String> {
   public FileLineIterable(File file) throws IOException {
     this(file, Charsets.UTF_8, false);
   }
-  
+
   /** Creates a  over a given file, assuming a UTF-8 encoding. */
   public FileLineIterable(File file, boolean skipFirstLine) throws IOException {
     this(file, Charsets.UTF_8, skipFirstLine);
@@ -52,7 +52,7 @@ public final class FileLineIterable implements Iterable<String> {
   public FileLineIterable(File file, Charset encoding, boolean skipFirstLine) throws IOException {
     this(FileLineIterator.getFileInputStream(file), encoding, skipFirstLine);
   }
-  
+
   public FileLineIterable(InputStream is) {
     this(is, Charsets.UTF_8, false);
   }

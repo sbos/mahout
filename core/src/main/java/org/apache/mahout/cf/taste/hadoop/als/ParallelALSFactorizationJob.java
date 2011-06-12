@@ -17,6 +17,9 @@
 
 package org.apache.mahout.cf.taste.hadoop.als;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.FloatWritable;
@@ -29,7 +32,6 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.partition.HashPartitioner;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.cf.taste.hadoop.TasteHadoopUtils;
 import org.apache.mahout.cf.taste.impl.common.FullRunningAverage;
@@ -46,8 +48,6 @@ import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.als.AlternateLeastSquaresSolver;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -91,9 +91,9 @@ public class ParallelALSFactorizationJob extends AbstractJob {
 
     addInputOption();
     addOutputOption();
-    addOption("lambda", "l", "", true);
-    addOption("numFeatures", "f", "", true);
-    addOption("numIterations", "i", "", true);
+    addOption("lambda", "l", "regularization parameter", true);
+    addOption("numFeatures", "f", "dimension of the feature space", true);
+    addOption("numIterations", "i", "number of iterations", true);
 
     Map<String,String> parsedArgs = parseArguments(args);
     if (parsedArgs == null) {
@@ -152,7 +152,7 @@ public class ParallelALSFactorizationJob extends AbstractJob {
 
 
   private void iterate(int currentIteration, int numFeatures, double lambda)
-    throws IOException, ClassNotFoundException, InterruptedException {
+      throws IOException, ClassNotFoundException, InterruptedException {
     /* fix M, compute U */
     joinAndSolve(pathToM(currentIteration - 1), pathToItemRatings(), pathToU(currentIteration), numFeatures,
         lambda, currentIteration, STEP_ONE);
@@ -177,7 +177,6 @@ public class ParallelALSFactorizationJob extends AbstractJob {
         IndexedVarIntWritable.class, FeatureVectorWithRatingWritable.class, SolvingReducer.class, VarIntWritable.class,
         FeatureVectorWithRatingWritable.class, SequenceFileOutputFormat.class);
     Configuration solveConf = solve.getConfiguration();
-    solve.setPartitionerClass(HashPartitioner.class);
     solve.setGroupingComparatorClass(IndexedVarIntWritable.GroupingComparator.class);
     solveConf.setInt(NUM_FEATURES, numFeatures);
     solveConf.set(LAMBDA, String.valueOf(lambda));
@@ -211,7 +210,7 @@ public class ParallelALSFactorizationJob extends AbstractJob {
     protected void reduce(VarIntWritable id, Iterable<FeatureVectorWithRatingWritable> values, Context ctx)
       throws IOException, InterruptedException {
       Vector featureVector = null;
-      Map<Integer,Float> ratings = new HashMap<Integer,Float>();
+      Map<Integer,Float> ratings = Maps.newHashMap();
       for (FeatureVectorWithRatingWritable value : values) {
         if (value.getFeatureVector() == null) {
           ratings.put(value.getIDIndex(), value.getRating());
@@ -242,16 +241,15 @@ public class ParallelALSFactorizationJob extends AbstractJob {
       super.setup(ctx);
       lambda = Double.parseDouble(ctx.getConfiguration().get(LAMBDA));
       numFeatures = ctx.getConfiguration().getInt(NUM_FEATURES, -1);
-      if (numFeatures < 1) {
-        throw new IllegalStateException("numFeatures was not set correctly!");
-      }
       solver = new AlternateLeastSquaresSolver();
+
+      Preconditions.checkArgument(numFeatures > 0, "numFeatures was not set correctly!");
     }
 
     @Override
     protected void reduce(IndexedVarIntWritable key, Iterable<FeatureVectorWithRatingWritable> values, Context ctx)
       throws IOException, InterruptedException {
-      List<Vector> UorMColumns = new ArrayList<Vector>();
+      List<Vector> UorMColumns = Lists.newArrayList();
       Vector ratingVector = new RandomAccessSparseVector(Integer.MAX_VALUE);
       int n = 0;
       for (FeatureVectorWithRatingWritable value : values) {
@@ -275,20 +273,19 @@ public class ParallelALSFactorizationJob extends AbstractJob {
       extends Reducer<VarLongWritable,FloatWritable,VarIntWritable,FeatureVectorWithRatingWritable> {
 
     private int numFeatures;
-    private static final Random random = RandomUtils.getRandom();
+    private final Random random = RandomUtils.getRandom();
 
     @Override
     protected void setup(Context ctx) throws IOException, InterruptedException {
       super.setup(ctx);
       numFeatures = ctx.getConfiguration().getInt(NUM_FEATURES, -1);
-      if (numFeatures < 1) {
-        throw new IllegalStateException("numFeatures was not set correctly!");
-      }
+
+      Preconditions.checkArgument(numFeatures > 0, "numFeatures was not set correctly!");
     }
 
     @Override
     protected void reduce(VarLongWritable itemID, Iterable<FloatWritable> ratings, Context ctx) 
-      throws IOException, InterruptedException {
+        throws IOException, InterruptedException {
 
       RunningAverage averageRating = new FullRunningAverage();
       for (FloatWritable rating : ratings) {

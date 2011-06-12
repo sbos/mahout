@@ -175,7 +175,8 @@ public final class VectorWritable extends Configured implements Writable {
       }
     }
     if (named) {
-      out.writeUTF(((NamedVector) vector).getName());
+      String name = ((NamedVector) vector).getName();
+      out.writeUTF(name == null ? "" : name);
     }
   }
 
@@ -184,4 +185,10 @@ public final class VectorWritable extends Configured implements Writable {
     v.readFields(in);
     return v.get();
   }
+
+  @Override
+  public String toString() {
+    return vector.toString();
+  }
+
 }

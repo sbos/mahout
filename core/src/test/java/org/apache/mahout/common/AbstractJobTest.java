@@ -19,9 +19,10 @@
 
 package org.apache.mahout.common;
 
-import java.util.HashMap;
+import java.io.IOException;
 import java.util.Map;
 
+import com.google.common.collect.Maps;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.common.commandline.DefaultOptionCreator;
@@ -35,14 +36,14 @@ public final class AbstractJobTest extends MahoutTestCase {
   
   @Test
   public void testFlag() throws Exception {
-    final Map<String,String> testMap = new HashMap<String,String>();
+    final Map<String,String> testMap = Maps.newHashMap();
     
     AbstractJobFactory fact = new AbstractJobFactory() {
       @Override
       public AbstractJob getJob() {
         return new AbstractJob() {
           @Override
-          public int run(String[] args) {
+          public int run(String[] args) throws IOException {
             addFlag("testFlag", "t", "a simple test flag");
             
             Map<String,String> argMap = parseArguments(args);
@@ -66,21 +67,21 @@ public final class AbstractJobTest extends MahoutTestCase {
   
   @Test
   public void testOptions() throws Exception {
-    final Map<String,String> testMap = new HashMap<String,String>();
+    final Map<String,String> testMap = Maps.newHashMap();
     
     AbstractJobFactory fact = new AbstractJobFactory() {
       @Override
       public AbstractJob getJob() {
         return new AbstractJob() {
           @Override
-          public int run(String[] args) {
+          public int run(String[] args) throws IOException {
             this.addOption(DefaultOptionCreator.overwriteOption().create());
             this.addOption("option", "o", "option");
             this.addOption("required", "r", "required", true /* required */);
             this.addOption("notRequired", "nr", "not required", false /* not required */);
             this.addOption("hasDefault", "hd", "option w/ default", "defaultValue");
-            
-            
+
+
             Map<String,String> argMap = parseArguments(args);
             if (argMap == null) {
               return -1;
@@ -158,7 +159,7 @@ public final class AbstractJobTest extends MahoutTestCase {
       public AbstractJob getJob() {
         return new AbstractJob() {
           @Override
-          public int run(String[] args) {
+          public int run(String[] args) throws IOException {
             addInputOption();
             addOutputOption();
             
@@ -228,6 +229,7 @@ public final class AbstractJobTest extends MahoutTestCase {
         "-Dmapred.output.dir=" + testOutputPropertyPath,
         "--input", testInputPath,
         "--output", testOutputPath });
+    assertEquals("0 for complete options", 0, ret);
     assertEquals("input command-line option precedes property",
         testInputPath, job.getInputPath().toString());
     assertEquals("output command-line option precedes property",

@@ -20,12 +20,12 @@ package org.apache.mahout.math.hadoop;
 import java.io.IOException;
 import java.util.Iterator;
 
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.mahout.common.IOUtils;
 import org.apache.mahout.common.MahoutTestCase;
 import org.apache.mahout.common.Pair;
 import org.apache.mahout.common.iterator.sequencefile.SequenceFileIterable;
@@ -36,7 +36,7 @@ import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorWritable;
 import org.apache.mahout.math.hadoop.DistributedRowMatrix.MatrixEntryWritable;
 import org.easymock.IArgumentMatcher;
-import org.easymock.classextension.EasyMock;
+import org.easymock.EasyMock;
 
 /**
  * a collection of small helper methods useful for unit-testing mathematical operations
@@ -55,9 +55,9 @@ public final class MathHelper {
       public boolean matches(Object argument) {
         if (argument instanceof MatrixEntryWritable) {
           MatrixEntryWritable entry = (MatrixEntryWritable) argument;
-          return (row == entry.getRow()
+          return row == entry.getRow()
               && col == entry.getCol()
-              && Math.abs(value - entry.getVal()) <= MahoutTestCase.EPSILON);
+              && Math.abs(value - entry.getVal()) <= MahoutTestCase.EPSILON;
         }
         return false;
       }
@@ -201,7 +201,7 @@ public final class MathHelper {
         writer.append(new IntWritable(n), new VectorWritable(v));
       }
     } finally {
-      IOUtils.quietClose(writer);
+      Closeables.closeQuietly(writer);
     }
   }
 }

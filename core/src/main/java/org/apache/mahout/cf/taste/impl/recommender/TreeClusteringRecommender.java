@@ -17,13 +17,13 @@
 
 package org.apache.mahout.cf.taste.impl.recommender;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
 
+import com.google.common.collect.Lists;
 import org.apache.mahout.cf.taste.common.Refreshable;
 import org.apache.mahout.cf.taste.common.TasteException;
 import org.apache.mahout.cf.taste.impl.common.FastByIDMap;
@@ -65,8 +65,8 @@ public final class TreeClusteringRecommender extends AbstractRecommender impleme
   private static final Logger log = LoggerFactory.getLogger(TreeClusteringRecommender.class);
   
   private static final FastIDSet[] NO_CLUSTERS = new FastIDSet[0];
-  private static final Random RANDOM = RandomUtils.getRandom();
-  
+
+  private final Random random;
   private final ClusterSimilarity clusterSimilarity;
   private final int numClusters;
   private final double clusteringThreshold;
@@ -111,11 +111,11 @@ public final class TreeClusteringRecommender extends AbstractRecommender impleme
                                    int numClusters,
                                    double samplingRate) throws TasteException {
     super(dataModel);
-    Preconditions.checkArgument(clusterSimilarity != null, "clusterSimilarity is null");
     Preconditions.checkArgument(numClusters >= 2, "numClusters must be at least 2");
     Preconditions.checkArgument(samplingRate > 0.0 && samplingRate <= 1.0,
       "samplingRate is invalid: %f", samplingRate);
-    this.clusterSimilarity = clusterSimilarity;
+    random = RandomUtils.getRandom();
+    this.clusterSimilarity = Preconditions.checkNotNull(clusterSimilarity);
     this.numClusters = numClusters;
     this.clusteringThreshold = Double.NaN;
     this.clusteringByThreshold = false;
@@ -169,10 +169,10 @@ public final class TreeClusteringRecommender extends AbstractRecommender impleme
                                    double clusteringThreshold,
                                    double samplingRate) throws TasteException {
     super(dataModel);
-    Preconditions.checkArgument(clusterSimilarity != null, "clusterSimilarity is null");
     Preconditions.checkArgument(!Double.isNaN(clusteringThreshold), "clusteringThreshold must not be NaN");
     Preconditions.checkArgument(samplingRate > 0.0 && samplingRate <= 1.0, "samplingRate is invalid: %f", samplingRate);
-    this.clusterSimilarity = clusterSimilarity;
+    random = RandomUtils.getRandom();
+    this.clusterSimilarity = Preconditions.checkNotNull(clusterSimilarity);
     this.numClusters = Integer.MIN_VALUE;
     this.clusteringThreshold = clusteringThreshold;
     this.clusteringByThreshold = true;
@@ -202,7 +202,7 @@ public final class TreeClusteringRecommender extends AbstractRecommender impleme
     }
 
     DataModel dataModel = getDataModel();
-    List<RecommendedItem> rescored = new ArrayList<RecommendedItem>(recommended.size());
+    List<RecommendedItem> rescored = Lists.newArrayListWithCapacity(recommended.size());
     // Only add items the user doesn't already have a preference for.
     // And that the rescorer doesn't "reject".
     for (RecommendedItem recommendedItem : recommended) {
@@ -257,7 +257,7 @@ public final class TreeClusteringRecommender extends AbstractRecommender impleme
     DataModel model = getDataModel();
     int numUsers = model.getNumUsers();
     if (numUsers > 0) {
-      List<FastIDSet> newClusters = new ArrayList<FastIDSet>(numUsers);
+      List<FastIDSet> newClusters = Lists.newArrayListWithCapacity(numUsers);
       // Begin with a cluster for each user:
       LongPrimitiveIterator it = model.getUserIDs();
       while (it.hasNext()) {
@@ -324,7 +324,7 @@ public final class TreeClusteringRecommender extends AbstractRecommender impleme
     for (int i = 0; i < size; i++) {
       FastIDSet cluster1 = clusters.get(i);
       for (int j = i + 1; j < size; j++) {
-        if (samplingRate >= 1.0 || RANDOM.nextDouble() < samplingRate) {
+        if (samplingRate >= 1.0 || random.nextDouble() < samplingRate) {
           FastIDSet cluster2 = clusters.get(j);
           double similarity = clusterSimilarity.getSimilarity(cluster1, cluster2);
           if (!Double.isNaN(similarity) && similarity > bestSimilarity) {

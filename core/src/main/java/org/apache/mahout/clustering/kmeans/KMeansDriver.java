@@ -17,9 +17,10 @@
 package org.apache.mahout.clustering.kmeans;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -248,7 +249,7 @@ public class KMeansDriver extends AbstractJob {
     throws IOException {
 
     KMeansClusterer clusterer = new KMeansClusterer(measure);
-    Collection<Cluster> clusters = new ArrayList<Cluster>();
+    Collection<Cluster> clusters = Lists.newArrayList();
 
     KMeansUtil.configureWithClusterInfo(conf, clustersIn, clusters);
     if (clusters.isEmpty()) {
@@ -285,7 +286,7 @@ public class KMeansDriver extends AbstractJob {
           writer.append(new Text(cluster.getIdentifier()), cluster);
         }
       } finally {
-        writer.close();
+        Closeables.closeQuietly(writer);
       }
       clustersIn = clustersOut;
       iteration++;
@@ -382,7 +383,7 @@ public class KMeansDriver extends AbstractJob {
       while (iterator.hasNext()) {
         Cluster value = iterator.next();
         if (!value.isConverged()) {
-          iterator.close();
+          Closeables.closeQuietly(iterator);
           return false;
         }
       }
@@ -432,7 +433,7 @@ public class KMeansDriver extends AbstractJob {
                                      DistanceMeasure measure) throws IOException {
 
     KMeansClusterer clusterer = new KMeansClusterer(measure);
-    Collection<Cluster> clusters = new ArrayList<Cluster>();
+    Collection<Cluster> clusters = Lists.newArrayList();
     KMeansUtil.configureWithClusterInfo(conf, clustersIn, clusters);
     if (clusters.isEmpty()) {
       throw new IllegalStateException("Clusters is empty!");
@@ -451,7 +452,7 @@ public class KMeansDriver extends AbstractJob {
           clusterer.emitPointToNearestCluster(value.get(), clusters, writer);
         }
       } finally {
-        writer.close();
+        Closeables.closeQuietly(writer);
       }
     }
 

@@ -27,6 +27,7 @@ import java.util.BitSet;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
+import com.google.common.io.Closeables;
 import org.apache.commons.cli2.CommandLine;
 import org.apache.commons.cli2.Group;
 import org.apache.commons.cli2.Option;
@@ -40,7 +41,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.mahout.common.CommandLineUtil;
-import org.apache.mahout.common.IOUtils;
 import org.apache.mahout.common.RandomUtils;
 import org.apache.mahout.common.commandline.DefaultOptionCreator;
 import org.apache.mahout.math.jet.random.sampling.RandomSampler;
@@ -380,9 +380,9 @@ public class SplitBayesInput {
       }
 
     } finally {
-      IOUtils.quietClose(reader);
-      IOUtils.quietClose(trainingWriter);
-      IOUtils.quietClose(testWriter);
+      Closeables.closeQuietly(reader);
+      Closeables.closeQuietly(trainingWriter);
+      Closeables.closeQuietly(testWriter);
     }
     
     log.info("file: {}, input: {} train: {}, test: {} starting at {}",
@@ -572,13 +572,13 @@ public class SplitBayesInput {
    */
   public static int countLines(FileSystem fs, Path inputFile, Charset charset) throws IOException {
     int lineCount = 0;
-    BufferedReader countReader = new BufferedReader(new InputStreamReader(fs.open(inputFile), charset));
+    BufferedReader reader = new BufferedReader(new InputStreamReader(fs.open(inputFile), charset));
     try {
-      while (countReader.readLine() != null) {
+      while (reader.readLine() != null) {
         lineCount++;
       }
     } finally {
-      IOUtils.quietClose(countReader);
+      Closeables.closeQuietly(reader);
     }
     
     return lineCount;

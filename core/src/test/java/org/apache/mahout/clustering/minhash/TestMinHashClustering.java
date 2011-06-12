@@ -16,6 +16,8 @@
  */
 package org.apache.mahout.clustering.minhash;
 
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -34,7 +36,6 @@ import org.apache.mahout.math.Vector;
 import org.apache.mahout.math.VectorWritable;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -52,7 +53,7 @@ public class TestMinHashClustering extends MahoutTestCase {
   private Path output;
   
   public static List<VectorWritable> getPointsWritable(double[][] raw) {
-    List<VectorWritable> points = new ArrayList<VectorWritable>();
+    List<VectorWritable> points = Lists.newArrayList();
     for (double[] fr : raw) {
       Vector vec = new SequentialAccessSparseVector(fr.length);
       vec.assign(fr);
@@ -71,11 +72,14 @@ public class TestMinHashClustering extends MahoutTestCase {
     output = new Path(getTestTempDirPath(), "output");
     Path pointFile = new Path(input, "file1");
     SequenceFile.Writer writer = new SequenceFile.Writer(fs, conf, pointFile, Text.class, VectorWritable.class);
-    int id = 0;
-    for (VectorWritable point : points) {
-      writer.append(new Text("Id-" + id++), point);
+    try {
+      int id = 0;
+      for (VectorWritable point : points) {
+        writer.append(new Text("Id-" + id++), point);
+      }
+    } finally {
+      Closeables.closeQuietly(writer);
     }
-    writer.close();
   }
   
   private String[] makeArguments(int minClusterSize,
@@ -126,7 +130,7 @@ public class TestMinHashClustering extends MahoutTestCase {
   private static void verify(Path output, double simThreshold, String msg) {
     Configuration conf = new Configuration();
     Path outputFile = new Path(output, "part-r-00000");
-    List<Vector> clusteredItems = new ArrayList<Vector>();
+    List<Vector> clusteredItems = Lists.newArrayList();
     String prevClusterId = "";
     for (Pair<Writable,VectorWritable> record : new SequenceFileIterable<Writable,VectorWritable>(outputFile, conf)) {
       Writable clusterId = record.getFirst();

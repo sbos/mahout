@@ -29,10 +29,11 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -62,11 +63,11 @@ public class DisplayClustering extends Frame {
 
   protected static final int SIZE = 8; // screen size in inches
 
-  private static final Collection<Vector> SAMPLE_PARAMS = new ArrayList<Vector>();
+  private static final Collection<Vector> SAMPLE_PARAMS = Lists.newArrayList();
 
-  protected static final List<VectorWritable> SAMPLE_DATA = new ArrayList<VectorWritable>();
+  protected static final List<VectorWritable> SAMPLE_DATA = Lists.newArrayList();
 
-  protected static final List<List<Cluster>> CLUSTERS = new ArrayList<List<Cluster>>();
+  protected static final List<List<Cluster>> CLUSTERS = Lists.newArrayList();
 
   static final Color[] COLORS = {
     Color.red, Color.orange, Color.yellow, Color.green, Color.blue, Color.magenta, Color.lightGray
@@ -243,12 +244,12 @@ public class DisplayClustering extends Frame {
         writer.append(new Text(), vw);
       }
     } finally {
-      writer.close();
+      Closeables.closeQuietly(writer);
     }
   }
 
   protected static List<Cluster> readClusters(Path clustersIn) {
-    List<Cluster> clusters = new ArrayList<Cluster>();
+    List<Cluster> clusters = Lists.newArrayList();
     Configuration conf = new Configuration();
     for (Cluster value :
          new SequenceFileDirValueIterable<Cluster>(clustersIn, PathType.LIST, PathFilters.logsCRCFilter(), conf)) {
@@ -302,19 +303,25 @@ public class DisplayClustering extends Frame {
 
   protected static ClusterClassifier readClassifier(Configuration config, Path path) throws IOException {
     SequenceFile.Reader reader = new SequenceFile.Reader(FileSystem.get(config), path, config);
-    Writable key = new Text();
-    ClusterClassifier classifierOut = new ClusterClassifier();
-    reader.next(key, classifierOut);
-    reader.close();
-    return classifierOut;
+    try {
+      Writable key = new Text();
+      ClusterClassifier classifierOut = new ClusterClassifier();
+      reader.next(key, classifierOut);
+      return classifierOut;
+    } finally {
+      Closeables.closeQuietly(reader);
+    }
   }
 
   protected static void writeClassifier(ClusterClassifier classifier, Configuration config, Path path)
     throws IOException {
     SequenceFile.Writer writer =
         new SequenceFile.Writer(FileSystem.get(config), config, path, Text.class, ClusterClassifier.class);
-    Writable key = new Text("test");
-    writer.append(key, classifier);
-    writer.close();
+    try {
+      Writable key = new Text("test");
+      writer.append(key, classifier);
+    } finally {
+      Closeables.closeQuietly(writer);
+    }
   }
 }

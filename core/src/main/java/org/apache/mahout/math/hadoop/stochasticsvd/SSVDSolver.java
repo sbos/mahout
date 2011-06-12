@@ -19,7 +19,6 @@ package org.apache.mahout.math.hadoop.stochasticsvd;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Deque;
@@ -29,6 +28,8 @@ import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -311,7 +312,7 @@ public class SSVDSolver {
       }
 
       closeables.remove(uHatWriter);
-      uHatWriter.close();
+      Closeables.closeQuietly(uHatWriter);
 
       SequenceFile.Writer svWriter = SequenceFile.createWriter(fs, conf,
           svPath = new Path(svPath, "svalues.seq"), IntWritable.class,
@@ -323,7 +324,7 @@ public class SSVDSolver {
       svWriter.append(iw, vw);
 
       closeables.remove(svWriter);
-      svWriter.close();
+      Closeables.closeQuietly(svWriter);
 
       UJob ujob = null;
       if (computeU) {
@@ -374,7 +375,7 @@ public class SSVDSolver {
       try {
         return r.getKeyClass().asSubclass(Writable.class);
       } finally {
-        r.close();
+        Closeables.closeQuietly(r);
       }
     }
     throw new IOException("Unable to open input files to determine input label type.");
@@ -424,7 +425,7 @@ public class SSVDSolver {
       return null;
     }
 
-    List<double[]> denseData = new ArrayList<double[]>();
+    List<double[]> denseData = Lists.newArrayList();
 
     // int m=0;
 

@@ -26,6 +26,7 @@ import java.io.DataOutputStream;
 import java.util.Arrays;
 import java.util.HashMap;
 
+import com.google.common.collect.Maps;
 import org.apache.mahout.common.MahoutTestCase;
 import org.junit.Test;
 
@@ -53,21 +54,16 @@ public final class GramTest extends MahoutTestCase {
     
     Gram four = new Gram("foo", 5, Gram.Type.NGRAM);
     assertEquals(Gram.Type.NGRAM, four.getType());
-   
-    try {
-      new Gram(null, 4, Gram.Type.UNIGRAM);
-      fail("expected exception");
-    } catch (NullPointerException ex) {
-      /* ok */
-    }
-   
-    
-    try {
-      new Gram("foo", 4, null);
-      fail("expected exception");
-    } catch (NullPointerException ex) {
-      /* ok */
-    }
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testNull1() {
+    new Gram(null, 4, Gram.Type.UNIGRAM);
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testNull2() {
+    new Gram("foo", 4, null);
   }
   
   @Test
@@ -117,7 +113,7 @@ public final class GramTest extends MahoutTestCase {
      new Gram("bar", Gram.Type.UNIGRAM)
     };
     
-    HashMap<Gram,Gram> map = new HashMap<Gram,Gram>();
+    HashMap<Gram,Gram> map = Maps.newHashMap();
     for (Gram n : input) {
       Gram val = map.get(n);
       if (val != null) {

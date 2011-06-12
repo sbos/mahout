@@ -20,6 +20,7 @@ package org.apache.mahout.classifier.naivebayes.trainer;
 import java.io.IOException;
 import java.net.URI;
 
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
@@ -34,12 +35,11 @@ import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.mahout.common.HadoopUtil;
+import org.apache.mahout.common.mapreduce.VectorSumReducer;
 import org.apache.mahout.math.VectorWritable;
 
 /**
  * This class trains a Naive Bayes Classifier (Parameters for both Naive Bayes and Complementary Naive Bayes)
- * 
- * 
  */
 public final class NaiveBayesTrainer {
   
@@ -59,7 +59,7 @@ public final class NaiveBayesTrainer {
                                       int numReducers,
                                       float alphaI,
                                       boolean trainComplementary)
-    throws IOException, InterruptedException, ClassNotFoundException {
+      throws IOException, InterruptedException, ClassNotFoundException {
     conf.setFloat(ALPHA_I, alphaI);
     Path labelMapPath = createLabelMapFile(inputLabels, conf, new Path(output, LABEL_MAP));
     Path classVectorPath =  new Path(output, CLASS_VECTORS);
@@ -92,8 +92,8 @@ public final class NaiveBayesTrainer {
     FileInputFormat.setInputPaths(job, input);
     FileOutputFormat.setOutputPath(job, output);
     job.setMapperClass(NaiveBayesInstanceMapper.class);
-    job.setCombinerClass(NaiveBayesSumReducer.class);
-    job.setReducerClass(NaiveBayesSumReducer.class);
+    job.setCombinerClass(VectorSumReducer.class);
+    job.setReducerClass(VectorSumReducer.class);
     job.setInputFormatClass(SequenceFileInputFormat.class);
     job.setOutputFormatClass(SequenceFileOutputFormat.class);
     job.setOutputKeyClass(IntWritable.class);
@@ -121,7 +121,7 @@ public final class NaiveBayesTrainer {
     FileInputFormat.setInputPaths(job, input);
     FileOutputFormat.setOutputPath(job, output);
     job.setMapperClass(NaiveBayesWeightsMapper.class);
-    job.setReducerClass(NaiveBayesSumReducer.class);
+    job.setReducerClass(VectorSumReducer.class);
     job.setInputFormatClass(SequenceFileInputFormat.class);
     job.setOutputFormatClass(SequenceFileOutputFormat.class);
     job.setOutputKeyClass(Text.class);
@@ -150,7 +150,7 @@ public final class NaiveBayesTrainer {
     FileInputFormat.setInputPaths(job, input);
     FileOutputFormat.setOutputPath(job, output);
     job.setMapperClass(NaiveBayesThetaMapper.class);
-    job.setReducerClass(NaiveBayesSumReducer.class);
+    job.setReducerClass(VectorSumReducer.class);
     job.setInputFormatClass(SequenceFileInputFormat.class);
     job.setOutputFormatClass(SequenceFileOutputFormat.class);
     job.setOutputKeyClass(IntWritable.class);
@@ -179,7 +179,7 @@ public final class NaiveBayesTrainer {
     FileInputFormat.setInputPaths(job, input);
     FileOutputFormat.setOutputPath(job, output);
     job.setMapperClass(NaiveBayesThetaComplementaryMapper.class);
-    job.setReducerClass(NaiveBayesSumReducer.class);
+    job.setReducerClass(VectorSumReducer.class);
     job.setInputFormatClass(SequenceFileInputFormat.class);
     job.setOutputFormatClass(SequenceFileOutputFormat.class);
     job.setOutputKeyClass(IntWritable.class);
@@ -201,12 +201,15 @@ public final class NaiveBayesTrainer {
     Path labelMapPath = new Path(labelMapPathBase, LABEL_MAP);
     
     SequenceFile.Writer dictWriter = new SequenceFile.Writer(fs, conf, labelMapPath, Text.class, IntWritable.class);
-    int i = 0;
-    for (String label : labels) {
-      Writable key = new Text(label);
-      dictWriter.append(key, new IntWritable(i++));
+    try {
+      int i = 0;
+      for (String label : labels) {
+        Writable key = new Text(label);
+        dictWriter.append(key, new IntWritable(i++));
+      }
+    } finally {
+      Closeables.closeQuietly(dictWriter);
     }
-    dictWriter.close();
     return labelMapPath;
   }
 }

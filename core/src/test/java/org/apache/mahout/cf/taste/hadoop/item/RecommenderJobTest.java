@@ -21,12 +21,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import com.google.common.collect.Maps;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -52,7 +52,7 @@ import org.apache.mahout.math.hadoop.similarity.vector.DistributedCooccurrenceVe
 import org.apache.mahout.math.hadoop.similarity.vector.DistributedTanimotoCoefficientVectorSimilarity;
 import org.apache.mahout.math.map.OpenIntLongHashMap;
 import org.easymock.IArgumentMatcher;
-import org.easymock.classextension.EasyMock;
+import org.easymock.EasyMock;
 import org.junit.Test;
 
 public class RecommenderJobTest extends TasteTestCase {
@@ -246,7 +246,7 @@ public class RecommenderJobTest extends TasteTestCase {
       @Override
       public boolean matches(Object argument) {
         if (argument instanceof VectorOrPrefWritable) {
-          VectorOrPrefWritable pref = ((VectorOrPrefWritable) argument);
+          VectorOrPrefWritable pref = (VectorOrPrefWritable) argument;
           return pref.getUserID() == userID && pref.getValue() == prefValue;
         }
         return false;
@@ -323,7 +323,7 @@ public class RecommenderJobTest extends TasteTestCase {
       @Override
       public boolean matches(Object argument) {
         if (argument instanceof VectorOrPrefWritable) {
-          VectorOrPrefWritable pref = ((VectorOrPrefWritable) argument);
+          VectorOrPrefWritable pref = (VectorOrPrefWritable) argument;
           return pref.getUserID() == userID && Float.isNaN(pref.getValue());
         }
         return false;
@@ -371,7 +371,7 @@ public class RecommenderJobTest extends TasteTestCase {
       @Override
       public boolean matches(Object argument) {
         if (argument instanceof VectorAndPrefsWritable) {
-          VectorAndPrefsWritable vectorAndPrefs = ((VectorAndPrefsWritable) argument);
+          VectorAndPrefsWritable vectorAndPrefs = (VectorAndPrefsWritable) argument;
 
           if (!vectorAndPrefs.getUserIDs().equals(userIDs)) {
             return false;
@@ -643,7 +643,7 @@ public class RecommenderJobTest extends TasteTestCase {
       @Override
       public boolean matches(Object argument) {
         if (argument instanceof RecommendedItemsWritable) {
-          RecommendedItemsWritable recommendedItemsWritable = ((RecommendedItemsWritable) argument);
+          RecommendedItemsWritable recommendedItemsWritable = (RecommendedItemsWritable) argument;
           List<RecommendedItem> expectedItems = new LinkedList<RecommendedItem>(Arrays.asList(items));
           return expectedItems.equals(recommendedItemsWritable.getRecommendedItems());
         }
@@ -875,7 +875,7 @@ public class RecommenderJobTest extends TasteTestCase {
 
 
   static Map<Long,List<RecommendedItem>> readRecommendations(File file) throws IOException {
-    Map<Long,List<RecommendedItem>> recommendations = new HashMap<Long,List<RecommendedItem>>();
+    Map<Long,List<RecommendedItem>> recommendations = Maps.newHashMap();
     Iterable<String> lineIterable = new FileLineIterable(file);
     for (String line : lineIterable) {
 

@@ -23,10 +23,11 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import com.google.common.io.Files;
 import org.apache.commons.cli2.CommandLine;
 import org.apache.commons.cli2.Group;
@@ -41,7 +42,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.TermAttribute;
 import org.apache.lucene.util.Version;
-import org.apache.mahout.common.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,7 +78,7 @@ public final class BayesFileFormatter {
       // listFiles() is called here as a way to recursively visit files,
       // actually
     } finally {
-      IOUtils.quietClose(writer);
+      Closeables.closeQuietly(writer);
     }
   }
   
@@ -105,7 +105,7 @@ public final class BayesFileFormatter {
       try {
         writeFile(label, analyzer, input, charset, writer);
       } finally {
-        IOUtils.quietClose(writer);
+        Closeables.closeQuietly(writer);
       }
     }
   }
@@ -173,7 +173,7 @@ public final class BayesFileFormatter {
           throw new IllegalStateException(e);
         } finally {
           if (writer == null) {
-            IOUtils.quietClose(theWriter);
+            Closeables.closeQuietly(theWriter);
           }
         }
       } else {
@@ -203,11 +203,12 @@ public final class BayesFileFormatter {
                                 Charset charset, Writer writer) throws IOException {
     Reader reader = Files.newReader(inFile, charset);
     try {
-      TokenStream ts = analyzer.tokenStream(label, reader);
+      TokenStream ts = analyzer.reusableTokenStream(label, reader);
       writer.write(label);
       writer.write('\t'); // edit: Inorder to match Hadoop standard
       // TextInputFormat
       TermAttribute termAtt = ts.addAttribute(TermAttribute.class);
+      ts.reset();
       while (ts.incrementToken()) {
         char[] termBuffer = termAtt.termBuffer();
         int termLen = termAtt.termLength();
@@ -215,7 +216,7 @@ public final class BayesFileFormatter {
         writer.write(' ');
       }
     } finally {
-      IOUtils.quietClose(reader);
+      Closeables.closeQuietly(reader);
     }
   }
   
@@ -229,10 +230,11 @@ public final class BayesFileFormatter {
    * @return An array of unique tokens
    */
   public static String[] readerToDocument(Analyzer analyzer, Reader reader) throws IOException {
-    TokenStream ts = analyzer.tokenStream("", reader);
+    TokenStream ts = analyzer.reusableTokenStream("", reader);
     
-    List<String> coll = new ArrayList<String>();
+    List<String> coll = Lists.newArrayList();
     TermAttribute termAtt = ts.addAttribute(TermAttribute.class);
+    ts.reset();
     while (ts.incrementToken()) {
       char[] termBuffer = termAtt.termBuffer();
       int termLen = termAtt.termLength();
@@ -305,7 +307,7 @@ public final class BayesFileFormatter {
       if (cmdLine.hasOption(analyzerOpt)) {
         analyzer = Class.forName((String) cmdLine.getValue(analyzerOpt)).asSubclass(Analyzer.class).newInstance();
       } else {
-        analyzer = new StandardAnalyzer(Version.LUCENE_30);
+        analyzer = new StandardAnalyzer(Version.LUCENE_31);
       }
       Charset charset = Charsets.UTF_8;
       if (cmdLine.hasOption(charsetOpt)) {

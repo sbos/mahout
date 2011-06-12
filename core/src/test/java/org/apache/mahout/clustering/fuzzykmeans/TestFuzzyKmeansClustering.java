@@ -17,12 +17,13 @@
 
 package org.apache.mahout.clustering.fuzzykmeans;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -91,12 +92,12 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
 
     for (Vector point : points) {
       // calculate point distances for all clusters    
-      List<Double> clusterDistanceList = new ArrayList<Double>();
+      List<Double> clusterDistanceList = Lists.newArrayList();
       for (SoftCluster cluster : clusterList) {
         clusterDistanceList.add(clusterer.getMeasure().distance(cluster.getCenter(), point));
       }
       // calculate point pdf for all clusters
-      List<Double> clusterPdfList = new ArrayList<Double>();
+      List<Double> clusterPdfList = Lists.newArrayList();
       for (int i = 0; i < clusterList.size(); i++) {
         double probWeight = clusterer.computeProbWeight(clusterDistanceList.get(i), clusterDistanceList);
         clusterPdfList.add(probWeight);
@@ -114,7 +115,7 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
       }
       List<WeightedVectorWritable> list = pointClusterInfo.get(clusterId);
       if (list == null) {
-        list = new ArrayList<WeightedVectorWritable>();
+        list = Lists.newArrayList();
         pointClusterInfo.put(clusterId, list);
       }
       list.add(new WeightedVectorWritable(clusterPdf, point));
@@ -145,7 +146,7 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
     for (int k = 0; k < points.size(); k++) {
       System.out.println("test k= " + k);
 
-      List<SoftCluster> clusterList = new ArrayList<SoftCluster>();
+      List<SoftCluster> clusterList = Lists.newArrayList();
       // pick k initial cluster centers at random
       for (int i = 0; i < k + 1; i++) {
         Vector vec = tweakValue(points.get(i));
@@ -154,7 +155,7 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
         //cluster.addPoint(cluster.getCenter(), 1);
         clusterList.add(cluster);
       }
-      Map<Integer, List<WeightedVectorWritable>> pointClusterInfo = new HashMap<Integer, List<WeightedVectorWritable>>();
+      Map<Integer, List<WeightedVectorWritable>> pointClusterInfo = Maps.newHashMap();
       // run reference FuzzyKmeans algorithm
       List<List<SoftCluster>> clusters = FuzzyKMeansClusterer.clusterPoints(points,
                                                                             clusterList,
@@ -193,19 +194,18 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
                                                            new Path(clustersPath, "part-00000"),
                                                            Text.class,
                                                            SoftCluster.class);
-      for (int i = 0; i < k + 1; i++) {
-        Vector vec = tweakValue(points.get(i).get());
-
-        SoftCluster cluster = new SoftCluster(vec, i, measure);
-        // add the center so the centroid will be correct upon output
-        cluster.observe(cluster.getCenter(), 1);
-        /*
-         * writer.write(cluster.getIdentifier() + '\t' + SoftCluster.formatCluster(cluster) + '\n');
-         */
-        writer.append(new Text(cluster.getIdentifier()), cluster);
-
+      try {
+        for (int i = 0; i < k + 1; i++) {
+          Vector vec = tweakValue(points.get(i).get());
+          SoftCluster cluster = new SoftCluster(vec, i, measure);
+          /* add the center so the centroid will be correct upon output */
+          cluster.observe(cluster.getCenter(), 1);
+          // writer.write(cluster.getIdentifier() + '\t' + SoftCluster.formatCluster(cluster) + '\n');
+          writer.append(new Text(cluster.getIdentifier()), cluster);
+        }
+      } finally {
+        Closeables.closeQuietly(writer);
       }
-      writer.close();
 
       // now run the Job using the run() command line options.
       Path output = getTestTempDirPath("output");
@@ -265,19 +265,20 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
                                                            new Path(clustersPath, "part-00000"),
                                                            Text.class,
                                                            SoftCluster.class);
-      for (int i = 0; i < k + 1; i++) {
-        Vector vec = tweakValue(points.get(i).get());
+      try {
+        for (int i = 0; i < k + 1; i++) {
+          Vector vec = tweakValue(points.get(i).get());
 
-        SoftCluster cluster = new SoftCluster(vec, i, measure);
-        // add the center so the centroid will be correct upon output
-        cluster.observe(cluster.getCenter(), 1);
-        /*
-         * writer.write(cluster.getIdentifier() + '\t' + SoftCluster.formatCluster(cluster) + '\n');
-         */
-        writer.append(new Text(cluster.getIdentifier()), cluster);
+          SoftCluster cluster = new SoftCluster(vec, i, measure);
+          /* add the center so the centroid will be correct upon output */
+          cluster.observe(cluster.getCenter(), 1);
+          // writer.write(cluster.getIdentifier() + '\t' + SoftCluster.formatCluster(cluster) + '\n');
+          writer.append(new Text(cluster.getIdentifier()), cluster);
 
+        }
+      } finally {
+        Closeables.closeQuietly(writer);
       }
-      writer.close();
 
       // now run the Job using the run() command line options.
       Path output = getTestTempDirPath("output");
@@ -326,7 +327,7 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
     for (int k = 0; k < points.size(); k++) {
       System.out.println("testKFuzzyKMeansMRJob k= " + k);
       // pick k initial cluster centers at random
-      Collection<SoftCluster> clusterList = new ArrayList<SoftCluster>();
+      Collection<SoftCluster> clusterList = Lists.newArrayList();
 
       for (int i = 0; i < k + 1; i++) {
         Vector vec = tweakValue(points.get(i).get());
@@ -358,7 +359,7 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
       // now verify mapper output
       assertEquals("Mapper Keys", k + 1, mapWriter.getData().size());
 
-      Map<Vector, Double> pointTotalProbMap = new HashMap<Vector, Double>();
+      Map<Vector, Double> pointTotalProbMap = Maps.newHashMap();
 
       for (Text key : mapWriter.getKeys()) {
         // SoftCluster cluster = SoftCluster.decodeCluster(key);
@@ -389,7 +390,7 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
     for (int k = 0; k < points.size(); k++) {
       System.out.println("testKFuzzyKMeansMRJob k= " + k);
       // pick k initial cluster centers at random
-      Collection<SoftCluster> clusterList = new ArrayList<SoftCluster>();
+      Collection<SoftCluster> clusterList = Lists.newArrayList();
 
       for (int i = 0; i < k + 1; i++) {
         Vector vec = tweakValue(points.get(i).get());
@@ -447,7 +448,7 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
     for (int k = 0; k < points.size(); k++) {
       System.out.println("testKFuzzyKMeansMRJob k= " + k);
       // pick k initial cluster centers at random
-      Collection<SoftCluster> clusterList = new ArrayList<SoftCluster>();
+      Collection<SoftCluster> clusterList = Lists.newArrayList();
 
       for (int i = 0; i < k + 1; i++) {
         Vector vec = tweakValue(points.get(i).get());
@@ -503,12 +504,12 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
       assertEquals("Reducer Output", k + 1, combinerWriter.getData().size());
 
       // compute the reference result after one iteration and compare
-      List<SoftCluster> reference = new ArrayList<SoftCluster>();
+      List<SoftCluster> reference = Lists.newArrayList();
       for (int i = 0; i < k + 1; i++) {
         Vector vec = tweakValue(points.get(i).get());
         reference.add(new SoftCluster(vec, i, measure));
       }
-      Collection<Vector> pointsVectors = new ArrayList<Vector>();
+      Collection<Vector> pointsVectors = Lists.newArrayList();
       for (VectorWritable point : points) {
         pointsVectors.add(point.get());
       }
@@ -535,7 +536,7 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
     for (int k = 0; k < points.size(); k++) {
       System.out.println("testKFuzzyKMeansMRJob k= " + k);
       // pick k initial cluster centers at random
-      Collection<SoftCluster> clusterList = new ArrayList<SoftCluster>();
+      Collection<SoftCluster> clusterList = Lists.newArrayList();
 
       for (int i = 0; i < k + 1; i++) {
         Vector vec = tweakValue(points.get(i).get());
@@ -592,7 +593,7 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
       }
 
       // run clusterMapper
-      Collection<SoftCluster> reducerClusters = new ArrayList<SoftCluster>();
+      Collection<SoftCluster> reducerClusters = Lists.newArrayList();
       for (Text key : reducerWriter.getKeys()) {
         List<SoftCluster> values = reducerWriter.getValue(key);
         reducerClusters.add(values.get(0));
@@ -613,13 +614,13 @@ public final class TestFuzzyKmeansClustering extends MahoutTestCase {
       }
 
       // compute the reference result after one iteration and compare
-      List<SoftCluster> reference = new ArrayList<SoftCluster>();
+      List<SoftCluster> reference = Lists.newArrayList();
       for (int i = 0; i < k + 1; i++) {
         Vector vec = tweakValue(points.get(i).get());
         reference.add(new SoftCluster(vec, i, measure));
       }
-      Map<Integer, List<WeightedVectorWritable>> refClusters = new HashMap<Integer, List<WeightedVectorWritable>>();
-      Collection<Vector> pointsVectors = new ArrayList<Vector>();
+      Map<Integer, List<WeightedVectorWritable>> refClusters = Maps.newHashMap();
+      Collection<Vector> pointsVectors = Lists.newArrayList();
       for (VectorWritable point : points) {
         pointsVectors.add(point.get());
       }

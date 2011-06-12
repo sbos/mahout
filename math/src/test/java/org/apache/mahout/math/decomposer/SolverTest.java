@@ -17,6 +17,7 @@
 
 package org.apache.mahout.math.decomposer;
 
+import com.google.common.collect.Lists;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.MahoutTestCase;
@@ -30,19 +31,18 @@ import org.apache.mahout.math.function.Functions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 public abstract class SolverTest extends MahoutTestCase {
-  private static Logger log = LoggerFactory.getLogger(SolverTest.class);
+  private static final Logger log = LoggerFactory.getLogger(SolverTest.class);
 
   public static void assertOrthonormal(Matrix eigens) {
     assertOrthonormal(eigens, 1.0e-6);
   }
 
   public static void assertOrthonormal(Matrix currentEigens, double errorMargin) {
-    List<String> nonOrthogonals = new ArrayList<String>();
+    List<String> nonOrthogonals = Lists.newArrayList();
     for (int i = 0; i < currentEigens.numRows(); i++) {
       Vector ei = currentEigens.getRow(i);
       for (int j = 0; j <= i; j++) {
@@ -52,11 +52,11 @@ public abstract class SolverTest extends MahoutTestCase {
         }
         double dot = ei.dot(ej);
         if (i == j) {
-          assertTrue("not norm 1 : " + dot + " (eigen #" + i + ')', (Math.abs(1 - dot) < errorMargin));
+          assertTrue("not norm 1 : " + dot + " (eigen #" + i + ')', Math.abs(1.0 - dot) < errorMargin);
         } else {
           if(Math.abs(dot) > errorMargin) {
             log.info("not orthogonal : " + dot + " (eigens " + i + ", " + j + ')', Math.abs(dot) < errorMargin);
-            nonOrthogonals.add("(" + i + "," + j + ")");
+            nonOrthogonals.add("(" + i + ',' + j + ')');
           }
         }
       }
@@ -65,8 +65,8 @@ public abstract class SolverTest extends MahoutTestCase {
   }
 
   public static void assertOrthonormal(LanczosState state) {
-    double errorMargin = 1e-5;
-    List<String> nonOrthogonals = new ArrayList<String>();
+    double errorMargin = 1.0e-5;
+    List<String> nonOrthogonals = Lists.newArrayList();
     for (int i = 0; i < state.getIterationNumber(); i++) {
       Vector ei = state.getRightSingularVector(i);
       for (int j = 0; j <= i; j++) {
@@ -76,16 +76,17 @@ public abstract class SolverTest extends MahoutTestCase {
         }
         double dot = ei.dot(ej);
         if (i == j) {
-          assertTrue("not norm 1 : " + dot + " (eigen #" + i + ')', (Math.abs(1 - dot) < errorMargin));
+          assertTrue("not norm 1 : " + dot + " (eigen #" + i + ')', Math.abs(1.0 - dot) < errorMargin);
         } else {
           if(Math.abs(dot) > errorMargin) {
             log.info("not orthogonal : " + dot + " (eigens " + i + ", " + j + ')', Math.abs(dot) < errorMargin);
-            nonOrthogonals.add("(" + i + "," + j + ")");
+            nonOrthogonals.add("(" + i + ',' + j + ')');
           }
         }
       }
-      if(!nonOrthogonals.isEmpty())
+      if (!nonOrthogonals.isEmpty()) {
         log.info(nonOrthogonals.size() + ": " + nonOrthogonals.toString());
+      }
     }
   }
 
@@ -126,7 +127,7 @@ public abstract class SolverTest extends MahoutTestCase {
                                                           int numCols,
                                                           int entriesPerRow,
                                                           double entryMean) {
-    SparseRowMatrix m = new SparseRowMatrix(new int[]{numRows, numCols});
+    Matrix m = new SparseRowMatrix(new int[]{numRows, numCols});
     //double n = 0;
     //Random r = RandomUtils.getRandom();
     Random r = new Random(1234L);
@@ -152,7 +153,7 @@ public abstract class SolverTest extends MahoutTestCase {
   }
 
   public static Matrix randomHierarchicalMatrix(int numRows, int numCols, boolean symmetric) {
-    DenseMatrix matrix = new DenseMatrix(numRows, numCols);
+    Matrix matrix = new DenseMatrix(numRows, numCols);
     Random r = new Random(1234L);
     for(int row = 0; row < numRows; row++) {
       Vector v = new DenseVector(numCols);

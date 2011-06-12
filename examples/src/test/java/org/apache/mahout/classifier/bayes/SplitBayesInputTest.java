@@ -24,11 +24,11 @@ import java.io.Writer;
 import java.nio.charset.Charset;
 
 import com.google.common.base.Charsets;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.mahout.classifier.ClassifierData;
-import org.apache.mahout.common.IOUtils;
 import org.apache.mahout.examples.MahoutTestCase;
 import org.apache.mahout.math.map.OpenObjectIntHashMap;
 import org.junit.Before;
@@ -74,27 +74,26 @@ public final class SplitBayesInputTest extends MahoutTestCase {
     for (String[] entry : ClassifierData.DATA) {
       if (!entry[0].equals(currentLabel)) {
         currentLabel = entry[0];
-        if (writer != null) {
-          IOUtils.quietClose(writer);
-        }
+        Closeables.closeQuietly(writer);
         
-        writer = new BufferedWriter(
-            new OutputStreamWriter(
-                fs.create(new Path(tempInputDirectory, currentLabel)), Charsets.UTF_8));
+        writer = new BufferedWriter(new OutputStreamWriter(fs.create(new Path(tempInputDirectory, currentLabel)),
+            Charsets.UTF_8));
       }
       countMap.adjustOrPutValue(currentLabel, 1, 1);
       writer.write(currentLabel + '\t' + entry[1] + '\n');
     }
-    IOUtils.quietClose(writer);
+    Closeables.closeQuietly(writer);
   }
 
   private void writeSingleInputFile() throws IOException {
-    BufferedWriter writer = new BufferedWriter(
-        new OutputStreamWriter(fs.create(tempInputFile), Charsets.UTF_8));
-    for (String[] entry : ClassifierData.DATA) {
-      writer.write(entry[0] + '\t' + entry[1] + '\n');
+    BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(fs.create(tempInputFile), Charsets.UTF_8));
+    try {
+      for (String[] entry : ClassifierData.DATA) {
+        writer.write(entry[0] + '\t' + entry[1] + '\n');
+      }
+    } finally {
+      Closeables.closeQuietly(writer);
     }
-    writer.close();
   }
 
   @Test
@@ -171,19 +170,19 @@ public final class SplitBayesInputTest extends MahoutTestCase {
   @Test
   public void testValidate() throws Exception {
     SplitBayesInput st = new SplitBayesInput();
-    assertValidateException(st, IllegalArgumentException.class);
+    assertValidateException(st);
     
     st.setTestSplitSize(100);
-    assertValidateException(st, IllegalArgumentException.class);
+    assertValidateException(st);
     
     st.setTestOutputDirectory(tempTestDirectory);
-    assertValidateException(st, IllegalArgumentException.class); 
+    assertValidateException(st);
     
     st.setTrainingOutputDirectory(tempTrainingDirectory);
     st.validate();
     
     st.setTestSplitPct(50);
-    assertValidateException(st, IllegalArgumentException.class);
+    assertValidateException(st);
     
     st = new SplitBayesInput();
     st.setTestRandomSelectionPct(50);
@@ -192,7 +191,7 @@ public final class SplitBayesInputTest extends MahoutTestCase {
     st.validate();
     
     st.setTestSplitPct(50);
-    assertValidateException(st, IllegalArgumentException.class);
+    assertValidateException(st);
     
     st = new SplitBayesInput();
     st.setTestRandomSelectionPct(50);
@@ -201,7 +200,7 @@ public final class SplitBayesInputTest extends MahoutTestCase {
     st.validate();
     
     st.setTestSplitSize(100);
-    assertValidateException(st, IllegalArgumentException.class);
+    assertValidateException(st);
   }
   
   private class TestCallback implements SplitBayesInput.SplitCallback {
@@ -218,16 +217,14 @@ public final class SplitBayesInputTest extends MahoutTestCase {
       assertSplit(fs, tempInputFile, charset, testSplitSize, trainingLines, tempTrainingDirectory, tempTestDirectory);
     }
   }
-  
-  private static void assertValidateException(SplitBayesInput st, Class<?> clazz) throws Exception {
+
+  private static void assertValidateException(SplitBayesInput st) throws IOException {
     try {
       st.validate();
-      fail("Expected valdate() to throw an exception, received none");
-    } catch (Exception e) {
-      if (!e.getClass().isAssignableFrom(clazz)) {
-        throw e;
-      }
-    } 
+      fail("Expected IllegalArgumentException");
+    } catch (IllegalArgumentException iae) {
+      // good
+    }
   }
   
   private static void assertSplit(FileSystem fs,

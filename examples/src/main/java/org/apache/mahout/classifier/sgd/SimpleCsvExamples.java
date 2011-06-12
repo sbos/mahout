@@ -21,8 +21,8 @@ import com.google.common.base.Charsets;
 import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import com.google.common.io.Files;
-import org.apache.mahout.common.IOUtils;
 import org.apache.mahout.common.RandomUtils;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Vector;
@@ -87,7 +87,7 @@ public final class SimpleCsvExamples {
           out.println(x);
         }
       } finally {
-        IOUtils.quietClose(out);
+        Closeables.closeQuietly(out);
       }
     } else if ("--parse".equals(args[0])) {
       BufferedReader in = Files.newReader(new File(args[1]), Charsets.UTF_8);
@@ -103,7 +103,7 @@ public final class SimpleCsvExamples {
           line = in.readLine();
         }
       } finally {
-        IOUtils.quietClose(in);
+        Closeables.closeQuietly(in);
       }
       String separator = "";
       for (int i = 0; i < FIELDS; i++) {
@@ -124,7 +124,7 @@ public final class SimpleCsvExamples {
           line = in.read();
         }
       } finally {
-        IOUtils.quietClose(in);
+        Closeables.closeQuietly(in);
       }
       String separator = "";
       for (int i = 0; i < FIELDS; i++) {
@@ -274,8 +274,8 @@ public final class SimpleCsvExamples {
     }
 
     @Override
-    public void close() throws IOException {
-      in.close();
+    public void close() {
+      Closeables.closeQuietly(in);
     }
   }
 }

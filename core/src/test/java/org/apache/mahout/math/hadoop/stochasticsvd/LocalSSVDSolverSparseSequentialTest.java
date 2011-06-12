@@ -23,6 +23,7 @@ import java.util.Deque;
 import java.util.LinkedList;
 import java.util.Random;
 
+import com.google.common.io.Closeables;
 import junit.framework.Assert;
 
 import org.apache.hadoop.conf.Configuration;
@@ -77,14 +78,13 @@ public class LocalSSVDSolverSparseSequentialTest extends MahoutTestCase {
     closeables.addFirst(w);
 
     int n = 100;
-    Vector dv;
     VectorWritable vw = new VectorWritable();
     IntWritable roww = new IntWritable();
 
     double muAmplitude = 50.0;
     int m = 1000;
     for (int i = 0; i < m; i++) {
-      dv=new SequentialAccessSparseVector(n);
+      Vector dv = new SequentialAccessSparseVector(n);
       for (int j = 0; j < n / 5; j++) {
         dv.setQuick(rnd.nextInt(n), muAmplitude * (rnd.nextDouble() - 0.5));
       }
@@ -93,7 +93,7 @@ public class LocalSSVDSolverSparseSequentialTest extends MahoutTestCase {
       w.append(roww, vw);
     }
     closeables.remove(w);
-    w.close();
+    Closeables.closeQuietly(w);
 
     FileSystem fs = FileSystem.get(conf);
 

@@ -154,7 +154,7 @@
     </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>mahout-utils</artifactId>
+      <artifactId>mahout-integration</artifactId>
     </dependency>
 
     <dependency>
@@ -174,27 +174,18 @@
     <dependency>
       <groupId>org.uncommons.watchmaker</groupId>
       <artifactId>watchmaker-swing</artifactId>
-      <exclusions>
-        <exclusion>
-          <groupId>jfree</groupId>
-          <artifactId>jfreechart</artifactId>
-        </exclusion>
-      </exclusions>
     </dependency>
 
     <dependency>
       <groupId>org.easymock</groupId>
       <artifactId>easymock</artifactId>
+      <scope>test</scope>
     </dependency>
-
-    <dependency>
-      <groupId>org.easymock</groupId>
-      <artifactId>easymockclassextension</artifactId>
-    </dependency>
-
+    
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
+      <scope>test</scope>
     </dependency>
 
     <dependency>
@@ -205,11 +196,6 @@
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-jcl</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>net.java.dev.jets3t</groupId>
-      <artifactId>jets3t</artifactId>
     </dependency>
 
   </dependencies>

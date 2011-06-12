@@ -18,17 +18,15 @@
 package org.apache.mahout.cf.taste.hadoop.item;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.mahout.cf.taste.common.TopK;
 import org.apache.mahout.cf.taste.hadoop.RecommendedItemsWritable;
 import org.apache.mahout.cf.taste.hadoop.TasteHadoopUtils;
 import org.apache.mahout.cf.taste.impl.common.FastIDSet;
-import org.apache.mahout.cf.taste.impl.recommender.ByValueRecommendedItemComparator;
 import org.apache.mahout.cf.taste.impl.recommender.GenericRecommendedItem;
 import org.apache.mahout.cf.taste.recommender.RecommendedItem;
+import org.apache.mahout.common.HadoopUtil;
 import org.apache.mahout.common.iterator.FileLineIterable;
 import org.apache.mahout.math.RandomAccessSparseVector;
 import org.apache.mahout.math.VarLongWritable;
@@ -37,12 +35,11 @@ import org.apache.mahout.math.function.DoubleFunction;
 import org.apache.mahout.math.map.OpenIntLongHashMap;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
-import java.util.List;
-import java.util.PriorityQueue;
-import java.util.Queue;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * <p>computes prediction values for each user</p>
@@ -59,6 +56,8 @@ import java.util.Queue;
 public final class AggregateAndRecommendReducer extends
     Reducer<VarLongWritable,PrefAndSimilarityColumnWritable,VarLongWritable,RecommendedItemsWritable> {
 
+  private static final Logger log = LoggerFactory.getLogger(AggregateAndRecommendReducer.class);
+
   static final String ITEMID_INDEX_PATH = "itemIDIndexPath";
   static final String NUM_RECOMMENDATIONS = "numRecommendations";
   static final int DEFAULT_NUM_RECOMMENDATIONS = 10;
@@ -70,31 +69,31 @@ public final class AggregateAndRecommendReducer extends
   private OpenIntLongHashMap indexItemIDMap;
 
   private static final float BOOLEAN_PREF_VALUE = 1.0f;
+  private static final Comparator<RecommendedItem> BY_PREFERENCE_VALUE =
+      new Comparator<RecommendedItem>() {
+        @Override
+        public int compare(RecommendedItem one, RecommendedItem two) {
+          return one.getValue() == two.getValue() ? 0 : one.getValue() > two.getValue() ? 1 : -1;
+        }
+      };
 
   @Override
   protected void setup(Context context) throws IOException {
-    Configuration jobConf = context.getConfiguration();
-    recommendationsPerUser = jobConf.getInt(NUM_RECOMMENDATIONS, DEFAULT_NUM_RECOMMENDATIONS);
-    booleanData = jobConf.getBoolean(RecommenderJob.BOOLEAN_DATA, false);
-    indexItemIDMap = TasteHadoopUtils.readItemIDIndexMap(jobConf.get(ITEMID_INDEX_PATH), jobConf);
+    Configuration conf = context.getConfiguration();
+    recommendationsPerUser = conf.getInt(NUM_RECOMMENDATIONS, DEFAULT_NUM_RECOMMENDATIONS);
+    booleanData = conf.getBoolean(RecommenderJob.BOOLEAN_DATA, false);
+    indexItemIDMap = TasteHadoopUtils.readItemIDIndexMap(conf.get(ITEMID_INDEX_PATH), conf);
 
-    FSDataInputStream in = null;
-    try {
-      String itemFilePathString = jobConf.get(ITEMS_FILE);
-      if (itemFilePathString == null) {
-        itemsToRecommendFor = null;
-      } else {
-        Path unqualifiedItemsFilePath = new Path(itemFilePathString);
-        FileSystem fs = FileSystem.get(unqualifiedItemsFilePath.toUri(), jobConf);
-        itemsToRecommendFor = new FastIDSet();
-        Path itemsFilePath = unqualifiedItemsFilePath.makeQualified(fs);
-        in = fs.open(itemsFilePath);
-        for (String line : new FileLineIterable(in)) {
+    String itemFilePathString = conf.get(ITEMS_FILE);
+    if (itemFilePathString != null) {
+      itemsToRecommendFor = new FastIDSet();
+      for (String line : new FileLineIterable(HadoopUtil.openStream(new Path(itemFilePathString), conf))) {
+        try {
           itemsToRecommendFor.add(Long.parseLong(line));
+        } catch (NumberFormatException nfe) {
+          log.warn("itemsFile line ignored: {}", line);
         }
       }
-    } finally {
-      IOUtils.closeStream(in);
     }
   }
 
@@ -182,35 +181,25 @@ public final class AggregateAndRecommendReducer extends
    * find the top entries in recommendationVector, map them to the real itemIDs and write back the result
    */
   private void writeRecommendedItems(VarLongWritable userID, Vector recommendationVector, Context context)
-    throws IOException, InterruptedException {
-    Queue<RecommendedItem> topItems =
-        new PriorityQueue<RecommendedItem>(recommendationsPerUser + 1,
-                                           Collections.reverseOrder(ByValueRecommendedItemComparator.getInstance()));
+      throws IOException, InterruptedException {
+
+    TopK<RecommendedItem> topKItems = new TopK<RecommendedItem>(recommendationsPerUser, BY_PREFERENCE_VALUE);
 
     Iterator<Vector.Element> recommendationVectorIterator = recommendationVector.iterateNonZero();
     while (recommendationVectorIterator.hasNext()) {
       Vector.Element element = recommendationVectorIterator.next();
       int index = element.index();
-
       long itemID = indexItemIDMap.get(index);
       if (itemsToRecommendFor == null || itemsToRecommendFor.contains(itemID)) {
         float value = (float) element.get();
         if (!Float.isNaN(value)) {
-          if (topItems.size() < recommendationsPerUser) {
-            topItems.add(new GenericRecommendedItem(itemID, value));
-          } else if (value > topItems.peek().getValue()) {
-            topItems.add(new GenericRecommendedItem(itemID, value));
-            topItems.poll();
-          }
+          topKItems.offer(new GenericRecommendedItem(itemID, value));
         }
       }
     }
 
-    if (!topItems.isEmpty()) {
-      List<RecommendedItem> recommendations = new ArrayList<RecommendedItem>(topItems.size());
-      recommendations.addAll(topItems);
-      Collections.sort(recommendations, ByValueRecommendedItemComparator.getInstance());
-      context.write(userID, new RecommendedItemsWritable(recommendations));
+    if (!topKItems.isEmpty()) {
+      context.write(userID, new RecommendedItemsWritable(topKItems.retrieve()));
     }
   }
 

@@ -17,6 +17,7 @@
 
 package org.apache.mahout.classifier.sgd;
 
+import com.google.common.io.Closeables;
 import org.apache.hadoop.io.Writable;
 import org.apache.mahout.classifier.OnlineLearner;
 import org.apache.mahout.common.MahoutTestCase;
@@ -41,9 +42,11 @@ public final class ModelSerializerTest extends MahoutTestCase {
   private static <T extends Writable> T roundTrip(T m, Class<T> clazz) throws IOException {
     ByteArrayOutputStream buf = new ByteArrayOutputStream(1000);
     DataOutputStream dos = new DataOutputStream(buf);
-    PolymorphicWritable.write(dos, m);
-    dos.close();
-
+    try {
+      PolymorphicWritable.write(dos, m);
+    } finally {
+      Closeables.closeQuietly(dos);
+    }
     return PolymorphicWritable.read(new DataInputStream(new ByteArrayInputStream(buf.toByteArray())), clazz);
   }
 

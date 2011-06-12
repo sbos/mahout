@@ -17,12 +17,12 @@
 
 package org.apache.mahout.cf.taste.impl.common;
 
+import com.google.common.collect.Maps;
 import org.apache.mahout.cf.taste.impl.TasteTestCase;
 import org.apache.mahout.common.RandomUtils;
 import org.junit.Test;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -86,22 +86,17 @@ public final class FastMapTest extends TasteTestCase {
     assertFalse(map.containsValue("something"));
   }
 
-  @Test
-  public void testNull() {
+  @Test(expected = NullPointerException.class)
+  public void testNull1() {
     Map<String, String> map = new FastMap<String, String>();
-    try {
-      map.put(null, "bar");
-      fail("Should have thrown NullPointerException");
-    } catch (NullPointerException npe) {
-      // good
-    }
-    try {
-      map.put("foo", null);
-      fail("Should have thrown NullPointerException");
-    } catch (NullPointerException npe) {
-      // good
-    }
     assertNull(map.get(null));
+    map.put(null, "bar");
+  }
+
+  @Test(expected = NullPointerException.class)
+  public void testNull2() {
+    Map<String, String> map = new FastMap<String, String>();
+    map.put("foo", null);
   }
 
   @Test
@@ -190,7 +185,7 @@ public final class FastMapTest extends TasteTestCase {
   @Test
   public void testVersusHashMap() {
     Map<Integer, String> actual = new FastMap<Integer, String>(1, 1000000);
-    Map<Integer, String> expected = new HashMap<Integer, String>(1000000);
+    Map<Integer, String> expected = Maps.newHashMapWithExpectedSize(1000000);
     Random r = RandomUtils.getRandom();
     for (int i = 0; i < 1000000; i++) {
       double d = r.nextDouble();

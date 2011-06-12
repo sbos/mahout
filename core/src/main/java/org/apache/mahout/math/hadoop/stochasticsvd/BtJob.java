@@ -18,11 +18,12 @@
 package org.apache.mahout.math.hadoop.stochasticsvd;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.collect.Lists;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
@@ -68,7 +69,7 @@ public final class BtJob {
   public static class BtMapper extends Mapper<Writable, VectorWritable, IntWritable, VectorWritable> {
 
     private SequenceFile.Reader qInput;
-    private final List<UpperTriangular> mRs = new ArrayList<UpperTriangular>();
+    private final List<UpperTriangular> mRs = Lists.newArrayList();
     private int blockNum;
     private double[][] mQt;
     private int cnt;
@@ -122,9 +123,7 @@ public final class BtJob {
 
     @Override
     protected void cleanup(Context context) throws IOException, InterruptedException {
-      if (qInput != null) {
-        qInput.close();
-      }
+      Closeables.closeQuietly(qInput);
       if (outputs != null) {
         outputs.close();
       }
@@ -217,7 +216,7 @@ public final class BtJob {
         try {
           rValue = iterator.next();
         } finally {
-          iterator.close();
+          Closeables.closeQuietly(iterator);
         }
         if (block < blockNum && block > 0) {
           GivensThinSolver.mergeR(mRs.get(0), new UpperTriangular(rValue.get()));

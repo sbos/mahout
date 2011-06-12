@@ -26,7 +26,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Collection;
 
-import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,20 +39,7 @@ public final class IOUtils {
   private static final Logger log = LoggerFactory.getLogger(IOUtils.class);
   
   private IOUtils() { }
-  
-  public static void quietClose(Closeable... closeables) {
-    Preconditions.checkNotNull(closeables, "Closables cannot be null");
-    for (Closeable closeable : closeables) {
-      if (closeable != null) {
-        try {
-          closeable.close();
-        } catch (IOException ioe) {
-          log.warn("Unexpected exception while closing; continuing", ioe);
-        }
-      }
-    }
-  }
-  
+
   // Sheez, why can't ResultSet, Statement and Connection implement Closeable?
   
   public static void quietClose(ResultSet closeable) {

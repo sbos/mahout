@@ -17,6 +17,9 @@
 
 package org.apache.mahout.math.hadoop.decomposer;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -40,11 +43,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -163,7 +164,7 @@ public class EigenVerificationJob extends AbstractJob {
     return 0;
   }
 
-  private Map<String, String> handleArgs(String[] args) {
+  private Map<String, String> handleArgs(String[] args) throws IOException {
     addOutputOption();
     addOption("eigenInput",
               "ei",
@@ -189,35 +190,38 @@ public class EigenVerificationJob extends AbstractJob {
     Path path = new Path(outPath, CLEAN_EIGENVECTORS);
     FileSystem fs = FileSystem.get(conf);
     SequenceFile.Writer seqWriter = new SequenceFile.Writer(fs, conf, path, IntWritable.class, VectorWritable.class);
-    IntWritable iw = new IntWritable();
-    int numEigensWritten = 0;
-    for (Map.Entry<MatrixSlice, EigenStatus> pruneSlice : prunedEigenMeta) {
-      MatrixSlice s = pruneSlice.getKey();
-      EigenStatus meta = pruneSlice.getValue();
-      EigenVector ev = new EigenVector(s.vector(),
-                                       meta.getEigenValue(),
-                                       Math.abs(1 - meta.getCosAngle()),
-                                       s.index());
-      log.info("appending {} to {}", ev, path);
-      Writable vw = new VectorWritable(ev);
-      iw.set(s.index());
-      seqWriter.append(iw, vw);
+    try {
+      IntWritable iw = new IntWritable();
+      int numEigensWritten = 0;
+      for (Map.Entry<MatrixSlice, EigenStatus> pruneSlice : prunedEigenMeta) {
+        MatrixSlice s = pruneSlice.getKey();
+        EigenStatus meta = pruneSlice.getValue();
+        EigenVector ev = new EigenVector(s.vector(),
+                                         meta.getEigenValue(),
+                                         Math.abs(1 - meta.getCosAngle()),
+                                         s.index());
+        log.info("appending {} to {}", ev, path);
+        Writable vw = new VectorWritable(ev);
+        iw.set(s.index());
+        seqWriter.append(iw, vw);
 
-      // increment the number of eigenvectors written and see if we've
-      // reached our specified limit, or if we wish to write all eigenvectors
-      // (latter is built-in, since numEigensWritten will always be > 0
-      numEigensWritten++;
-      if (numEigensWritten == maxEigensToKeep) {
-        log.info("{} of the {} total eigens have been written", maxEigensToKeep, prunedEigenMeta.size());
-        break;
+        // increment the number of eigenvectors written and see if we've
+        // reached our specified limit, or if we wish to write all eigenvectors
+        // (latter is built-in, since numEigensWritten will always be > 0
+        numEigensWritten++;
+        if (numEigensWritten == maxEigensToKeep) {
+          log.info("{} of the {} total eigens have been written", maxEigensToKeep, prunedEigenMeta.size());
+          break;
+        }
       }
+    } finally {
+      Closeables.closeQuietly(seqWriter);
     }
-    seqWriter.close();
     cleanedEigensPath = path;
   }
 
   private List<Map.Entry<MatrixSlice, EigenStatus>> pruneEigens(Map<MatrixSlice, EigenStatus> eigenMetaData) {
-    List<Map.Entry<MatrixSlice, EigenStatus>> prunedEigenMeta = new ArrayList<Map.Entry<MatrixSlice, EigenStatus>>();
+    List<Map.Entry<MatrixSlice, EigenStatus>> prunedEigenMeta = Lists.newArrayList();
 
     for (Map.Entry<MatrixSlice, EigenStatus> entry : eigenMetaData.entrySet()) {
       if (Math.abs(1 - entry.getValue().getCosAngle()) < maxError && entry.getValue().getEigenValue() > minEigenValue) {
@@ -242,7 +246,7 @@ public class EigenVerificationJob extends AbstractJob {
   }
 
   private Map<MatrixSlice, EigenStatus> verifyEigens() {
-    Map<MatrixSlice, EigenStatus> eigenMetaData = new HashMap<MatrixSlice, EigenStatus>();
+    Map<MatrixSlice, EigenStatus> eigenMetaData = Maps.newHashMap();
 
     for (MatrixSlice slice : eigensToVerify) {
       EigenStatus status = eigenVerifier.verify(corpus, slice.vector());
@@ -255,7 +259,7 @@ public class EigenVerificationJob extends AbstractJob {
     DistributedRowMatrix eigens = new DistributedRowMatrix(eigenInput, tmpOut, 1, 1);
     eigens.setConf(conf);
     if (inMemory) {
-      List<Vector> eigenVectors = new ArrayList<Vector>();
+      List<Vector> eigenVectors = Lists.newArrayList();
       for (MatrixSlice slice : eigens) {
         eigenVectors.add(slice.vector());
       }
