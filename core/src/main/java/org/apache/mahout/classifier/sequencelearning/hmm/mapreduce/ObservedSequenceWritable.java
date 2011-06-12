@@ -13,15 +13,20 @@ import java.util.Arrays;
  * The class for modeling a sequence of observed variable for parallel functionality in MapReduce
  */
 public class ObservedSequenceWritable implements WritableComparable<ObservedSequenceWritable>, Cloneable {
-    int[] data;
+    private int[] data;
+    private int length = 0;
 
     public ObservedSequenceWritable(int length) {
-        data = new int[length];
+        setLength(length);
     }
 
     public ObservedSequenceWritable(int[] data) {
-        this.data = new int[data.length];
-        System.arraycopy(data, 0, this.data, 0, data.length);
+        setData(data);
+    }
+
+    public ObservedSequenceWritable(int[] data, int length) {
+        this.data = data;
+        this.length = length;
     }
 
     @Override
@@ -33,12 +38,6 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
         Arrays.fill(data, value);
     }
 
-    public void assign(int[] values) {
-        final int length = Math.min(getLength(), values.length);
-        for (int i = 0; i < length; ++i)
-            data[i] = values[i];
-    }
-
     public int[] getData() {
         return data;
     }
@@ -47,10 +46,11 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
         if (data == null)
             throw new NullArgumentException("data");
         this.data = data;
+        this.length = data.length;
     }
 
     public int getLength() {
-        return data.length;
+        return length;
     }
 
     public void setLength(int length) {
@@ -59,6 +59,7 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
             data = newData;
             return;
         }
+        this.length = length;
         System.arraycopy(data, 0, newData, 0, Math.min(length, data.length));
     }
 
@@ -66,7 +67,7 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
     public void write(DataOutput dataOutput) throws IOException {
         final VarIntWritable value = new VarIntWritable(getLength());
         value.write(dataOutput);
-        for (int i = 0; i < data.length; ++i) {
+        for (int i = 0; i < getLength(); ++i) {
             value.set(data[i]);
             value.write(dataOutput);
         }
@@ -77,7 +78,7 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
         final VarIntWritable value = new VarIntWritable();
         value.readFields(dataInput);
         final int length = value.get();
-        final int[] data = new int[length];
+        setLength(length);
         for (int i = 0; i < length; ++i) {
             value.readFields(dataInput);
             data[i] = value.get();
@@ -105,7 +106,7 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
 
     @Override
     public int hashCode() {
-        int hash = ((Integer)data.length).hashCode();
+        int hash = ((Integer)getLength()).hashCode();
         for (int i = 0; i < data.length; ++i)
             hash += i * ((Integer)data[i]).hashCode();
         return hash;

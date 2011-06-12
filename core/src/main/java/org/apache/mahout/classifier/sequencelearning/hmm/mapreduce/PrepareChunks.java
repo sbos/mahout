@@ -125,8 +125,8 @@ public final class PrepareChunks {
                     chunkObservations[observationsRead] = scanner.nextInt();
                 }
 
-                final ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations.length);
-                chunk.assign(chunkObservations);
+                final ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
+                        observationsRead);
 
                 log.info(observationsRead + " observations to write to this chunk");
                 outputs.get(currentChunk).append(new Text(inputPath.getName()),
