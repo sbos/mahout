@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+
 package org.apache.mahout.classifier.sequencelearning.hmm;
 
 import org.apache.commons.cli2.CommandLine;
@@ -28,39 +29,33 @@ import org.apache.commons.cli2.commandline.Parser;
 import org.apache.mahout.common.CommandLineUtil;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
+import java.util.Date;
 
 /**
- * Command-line tool for Viterbi evaluating
+ * Command-line tool for generating random sequences by given HMM
  */
-public class ViterbiEvaluator {
+public class RandomSequenceGenerator {
   public static void main(String[] args) throws IOException {
     final DefaultOptionBuilder optionBuilder = new DefaultOptionBuilder();
     final ArgumentBuilder argumentBuilder = new ArgumentBuilder();
 
-    final Option inputOption = optionBuilder.withLongName("input").
-      withDescription("Text file with space-separated integers to segment").
-      withShortName("i").withArgument(argumentBuilder.withMaximum(1).withMinimum(1).
-      withName("path").create()).withRequired(true).create();
-
     final Option outputOption = optionBuilder.withLongName("output").
-      withDescription("Output file with decoded sequence of hidden states").
+      withDescription("Output file with sequence of observed states").
       withShortName("o").withArgument(argumentBuilder.withMaximum(1).withMinimum(1).
-      withName("path").create()).withRequired(true).create();
+      withName("path").create()).withRequired(false).create();
 
     final Option modelOption = optionBuilder.withLongName("model").
       withDescription("Path to serialized HMM model").
       withShortName("m").withArgument(argumentBuilder.withMaximum(1).withMinimum(1).
       withName("path").create()).withRequired(true).create();
 
-    final Option likelihoodOption = optionBuilder.withLongName("likelihood").
-      withDescription("Compute likelihood of observed sequence").
-      withShortName("l").withRequired(false).create();
+    final Option lengthOption = optionBuilder.withLongName("length").
+      withDescription("Length of generated sequence").
+      withShortName("l").withArgument(argumentBuilder.withMaximum(1).withMinimum(1).
+      withName("number").create()).withRequired(true).create();
 
-    final Group optionGroup = new GroupBuilder().withOption(inputOption).
-      withOption(outputOption).withOption(modelOption).withOption(likelihoodOption).
+    final Group optionGroup = new GroupBuilder().
+      withOption(outputOption).withOption(modelOption).withOption(lengthOption).
       withName("Options").create();
 
     try {
@@ -68,50 +63,29 @@ public class ViterbiEvaluator {
       parser.setGroup(optionGroup);
       final CommandLine commandLine = parser.parse(args);
 
-      final String input = (String) commandLine.getValue(inputOption);
       final String output = (String) commandLine.getValue(outputOption);
 
       final String modelPath = (String) commandLine.getValue(modelOption);
 
-      final boolean computeLikelihood = commandLine.hasOption(likelihoodOption);
+      final int length = Integer.parseInt((String) commandLine.getValue(lengthOption));
 
       //reading serialized HMM
       final DataInputStream modelStream = new DataInputStream(new FileInputStream(modelPath));
       final HmmModel model = LossyHmmSerializer.deserialize(modelStream);
       modelStream.close();
 
-      //reading observations
-      final List<Integer> observations = new ArrayList<Integer>();
-      final FileInputStream inputStream = new FileInputStream(input);
-      final Scanner scanner = new Scanner(inputStream);
-
-      while (scanner.hasNextInt()) {
-        observations.add(scanner.nextInt());
-      }
-
-      scanner.close();
-      inputStream.close();
-
-      final int[] observationsArray = new int[observations.size()];
-      for (int i = 0; i < observations.size(); ++i)
-        observationsArray[i] = observations.get(i);
-
-      //decoding
-      final int[] hiddenStates = HmmEvaluator.decode(model, observationsArray, true);
+      //generating observations
+      final int[] observations = HmmEvaluator.predict(model, length, new Date().getTime());
 
       //writing output
       final FileOutputStream outputStream = new FileOutputStream(output);
       final PrintWriter writer = new PrintWriter(outputStream);
-      for (int hiddenState : hiddenStates) {
-        writer.print(hiddenState);
+      for (int observation : observations) {
+        writer.print(observation);
         writer.print(' ');
       }
       writer.close();
       outputStream.close();
-
-      if (computeLikelihood) {
-        System.out.println("Likelihood: " + HmmEvaluator.modelLikelihood(model, observationsArray, true));
-      }
     } catch (OptionException e) {
       CommandLineUtil.printHelp(optionGroup);
     }
