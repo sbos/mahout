@@ -13,102 +13,102 @@ import java.util.Arrays;
  * The class for modeling a sequence of observed variable for parallel functionality in MapReduce
  */
 public class ObservedSequenceWritable implements WritableComparable<ObservedSequenceWritable>, Cloneable {
-    private int[] data;
-    private int length = 0;
+  private int[] data;
+  private int length = 0;
 
-    public ObservedSequenceWritable(int length) {
-        setLength(length);
-    }
+  public ObservedSequenceWritable(int length) {
+    setLength(length);
+  }
 
-    public ObservedSequenceWritable(int[] data) {
-        setData(data);
-    }
+  public ObservedSequenceWritable(int[] data) {
+    setData(data);
+  }
 
-    public ObservedSequenceWritable(int[] data, int length) {
-        this.data = data;
-        this.length = length;
-    }
+  public ObservedSequenceWritable(int[] data, int length) {
+    this.data = data;
+    this.length = length;
+  }
 
-    @Override
-    public ObservedSequenceWritable clone() {
-        return new ObservedSequenceWritable(data);
-    }
+  @Override
+  public ObservedSequenceWritable clone() {
+    return new ObservedSequenceWritable(data);
+  }
 
-    public void assign(int value) {
-        Arrays.fill(data, value);
-    }
+  public void assign(int value) {
+    Arrays.fill(data, value);
+  }
 
-    public int[] getData() {
-        return data;
-    }
+  public int[] getData() {
+    return data;
+  }
 
-    public void setData(int[] data) {
-        if (data == null)
-            throw new NullArgumentException("data");
-        this.data = data;
-        this.length = data.length;
-    }
+  public void setData(int[] data) {
+    if (data == null)
+      throw new NullArgumentException("data");
+    this.data = data;
+    this.length = data.length;
+  }
 
-    public int getLength() {
-        return length;
-    }
+  public int getLength() {
+    return length;
+  }
 
-    public void setLength(int length) {
-        int[] newData = new int[length];
-        if (data == null) {
-            data = newData;
-            return;
-        }
-        this.length = length;
-        System.arraycopy(data, 0, newData, 0, Math.min(length, data.length));
+  public void setLength(int length) {
+    int[] newData = new int[length];
+    if (data == null) {
+      data = newData;
+      return;
     }
+    this.length = length;
+    System.arraycopy(data, 0, newData, 0, Math.min(length, data.length));
+  }
 
-    @Override
-    public void write(DataOutput dataOutput) throws IOException {
-        final VarIntWritable value = new VarIntWritable(getLength());
-        value.write(dataOutput);
-        for (int i = 0; i < getLength(); ++i) {
-            value.set(data[i]);
-            value.write(dataOutput);
-        }
+  @Override
+  public void write(DataOutput dataOutput) throws IOException {
+    final VarIntWritable value = new VarIntWritable(getLength());
+    value.write(dataOutput);
+    for (int i = 0; i < getLength(); ++i) {
+      value.set(data[i]);
+      value.write(dataOutput);
     }
+  }
 
-    @Override
-    public void readFields(DataInput dataInput) throws IOException {
-        final VarIntWritable value = new VarIntWritable();
-        value.readFields(dataInput);
-        final int length = value.get();
-        setLength(length);
-        for (int i = 0; i < length; ++i) {
-            value.readFields(dataInput);
-            data[i] = value.get();
-        }
+  @Override
+  public void readFields(DataInput dataInput) throws IOException {
+    final VarIntWritable value = new VarIntWritable();
+    value.readFields(dataInput);
+    final int length = value.get();
+    setLength(length);
+    for (int i = 0; i < length; ++i) {
+      value.readFields(dataInput);
+      data[i] = value.get();
     }
+  }
 
-    @Override
-    public int compareTo(ObservedSequenceWritable observedSequenceWritable) {
-        final int lengthDifference = getLength() - observedSequenceWritable.getLength();
-        if (lengthDifference != 0)
-            return lengthDifference;
-        final int[] otherData = observedSequenceWritable.getData();
-        for (int i = 0; i < getLength(); ++i) {
-            final int difference = data[i] - otherData[i];
-            if (difference != 0)
-                return difference;
-        }
-        return 0;
+  @Override
+  public int compareTo(ObservedSequenceWritable observedSequenceWritable) {
+    final int lengthDifference = getLength() - observedSequenceWritable.getLength();
+    if (lengthDifference != 0)
+      return lengthDifference;
+    final int[] otherData = observedSequenceWritable.getData();
+    for (int i = 0; i < getLength(); ++i) {
+      final int difference = data[i] - otherData[i];
+      if (difference != 0)
+        return difference;
     }
+    return 0;
+  }
 
-    @Override
-    public boolean equals(Object other) {
-        return (other instanceof ObservedSequenceWritable) ? (compareTo((ObservedSequenceWritable)other) == 0) : false;
-    }
+  @Override
+  public boolean equals(Object other) {
+    return (other instanceof ObservedSequenceWritable) ? (compareTo((ObservedSequenceWritable)other) == 0) : false;
+  }
 
-    @Override
-    public int hashCode() {
-        int hash = ((Integer)getLength()).hashCode();
-        for (int i = 0; i < data.length; ++i)
-            hash += i * ((Integer)data[i]).hashCode();
-        return hash;
-    }
+  @Override
+  public int hashCode() {
+    int hash = ((Integer)getLength()).hashCode();
+    for (int i = 0; i < data.length; ++i)
+      hash += i * ((Integer)data[i]).hashCode();
+    return hash;
+  }
 }

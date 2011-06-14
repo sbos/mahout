@@ -17,16 +17,18 @@
 
 package org.apache.mahout.classifier.sequencelearning.hmm;
 
-import java.util.Map;
-import java.util.Random;
-
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import org.apache.commons.lang.NullArgumentException;
 import org.apache.mahout.common.RandomUtils;
 import org.apache.mahout.math.DenseMatrix;
 import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
+
+import java.io.InputStream;
+import java.util.Map;
+import java.util.Random;
 
 /**
  * Main class defining a Hidden Markov Model
@@ -253,6 +255,14 @@ public class HmmModel implements Cloneable {
     return initialProbabilities;
   }
 
+  public void setInitialProbabilities(Vector initialProbabilities) {
+    if (initialProbabilities == null)
+      throw new NullArgumentException("initialProbabilities");
+    if (initialProbabilities.size() != nrOfHiddenStates)
+      throw new IllegalArgumentException("initialProbabilities size should equal to nrOfHiddenStates");
+    this.initialProbabilities = initialProbabilities;
+  }
+
   /**
    * Getter method for the hidden state Names map
    *
@@ -380,5 +390,4 @@ public class HmmModel implements Cloneable {
     Integer tmp = outputStateNames.get(name);
     return tmp == null ? -1 : tmp;
   }
-
 }
