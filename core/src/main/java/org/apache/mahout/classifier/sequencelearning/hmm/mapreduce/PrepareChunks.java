@@ -114,7 +114,7 @@ public final class PrepareChunks {
           log.debug("Opening new sequence file for chunk #" + currentChunk);
           final SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
             new Path(outputPath, ((Integer)currentChunk).toString()),
-            Text.class, GenericViterbiData.class);
+            SequenceKey.class, GenericViterbiData.class);
           outputs.add(writer);
         }
         log.info("Splitting " + inputName + ", chunk #" + currentChunk);

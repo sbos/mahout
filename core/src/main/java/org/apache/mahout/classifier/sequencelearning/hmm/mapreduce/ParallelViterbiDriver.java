@@ -16,8 +16,11 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.mahout.common.CommandLineUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -26,6 +29,8 @@ public class ParallelViterbiDriver {
   private String inputs;
   private String output, intermediate, model;
   private Configuration configuration;
+
+  private static Logger logger = LoggerFactory.getLogger(ParallelViterbiDriver.class);
 
   private ParallelViterbiDriver(String inputs, String output, String intermediate, String model) {
     this.inputs = inputs;
@@ -87,8 +92,10 @@ public class ParallelViterbiDriver {
   }
 
   private void runForward() throws IOException, ClassNotFoundException, InterruptedException {
+    logger.info("Running forward Viterbi pass");
+
     for (int i = 0; i < getChunkCount(); ++i) {
-      final Job job = new Job(configuration, "viterbi-forward");
+      final Job job = new Job(configuration, "viterbi-forward-" + i);
       job.setMapperClass(Mapper.class);
       job.setReducerClass(ForwardViterbiReducer.class);
       job.setInputFormatClass(SequenceFileInputFormat.class);
@@ -98,18 +105,27 @@ public class ParallelViterbiDriver {
       job.setOutputKeyClass(SequenceKey.class);
       job.setOutputValueClass(GenericViterbiData.class);
 
+      job.setJarByClass(ForwardViterbiReducer.class);
+
       final String chunk = ((Integer) i).toString();
-      FileInputFormat.addInputPath(job, new Path(inputs, chunk));
-      //TODO: add output of previous step
+      final Path chunkInput = new Path(inputs, chunk);
+      final Path chunkIntermediate = new Path(intermediate, "probabilities/" + chunk);
+      FileInputFormat.addInputPath(job, chunkInput);
+      FileOutputFormat.setOutputPath(job, chunkIntermediate);
+      if (i > 0) {
+        //adding output of previous step
+        FileInputFormat.addInputPath(job, new Path(intermediate, "probabilities/" + (i-1)));
+      }
 
       final Configuration jobConfiguration = job.getConfiguration();
       jobConfiguration.setInt("hmm.chunk_number", i);
-      jobConfiguration.set("hmm.intermediate", intermediate);
-      jobConfiguration.set("hmm.model", new Path(model).getName());
+      jobConfiguration.set("hmm.intermediate", intermediate + "/paths/" + chunk);
+      final String modelName = new Path(model).getName();
+
+      jobConfiguration.set("hmm.model", modelName);
       DistributedCache.addCacheFile(URI.create(model), jobConfiguration);
       job.submit();
-
-      break;
+      job.waitForCompletion(true);
     }
   }
 }

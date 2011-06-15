@@ -16,6 +16,11 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
   private int[] data;
   private int length = 0;
 
+  public ObservedSequenceWritable() {
+    length = 0;
+    data = null;
+  }
+
   public ObservedSequenceWritable(int length) {
     setLength(length);
   }
@@ -55,11 +60,11 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
 
   public void setLength(int length) {
     int[] newData = new int[length];
+    this.length = length;
     if (data == null) {
       data = newData;
       return;
     }
-    this.length = length;
     System.arraycopy(data, 0, newData, 0, Math.min(length, data.length));
   }
 

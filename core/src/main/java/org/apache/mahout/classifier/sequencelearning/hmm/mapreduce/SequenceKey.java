@@ -12,6 +12,11 @@ class SequenceKey implements WritableComparable<SequenceKey> {
   private Text name;
   private VarIntWritable chunkNumber;
 
+  public SequenceKey() {
+    name = new Text();
+    chunkNumber = new VarIntWritable();
+  }
+
   public SequenceKey(String name, int chunkNumber) {
     this.name = new Text(name);
     this.chunkNumber = new VarIntWritable(chunkNumber);
@@ -45,5 +50,10 @@ class SequenceKey implements WritableComparable<SequenceKey> {
   public void readFields(DataInput dataInput) throws IOException {
     name.readFields(dataInput);
     chunkNumber.readFields(dataInput);
+  }
+
+  @Override
+  public String toString() {
+    return name.toString() + "/" + chunkNumber;
   }
 }

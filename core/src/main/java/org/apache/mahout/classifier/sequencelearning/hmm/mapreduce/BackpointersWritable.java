@@ -11,6 +11,10 @@ import java.io.IOException;
 class BackpointersWritable implements Writable {
   int[][] backpointers;
 
+  public BackpointersWritable() {
+    backpointers = new int[1][1];
+  }
+
   public BackpointersWritable(int nOfObservations, int nOfHiddenStates) {
     backpointers = new int[nOfObservations][nOfHiddenStates];
   }
@@ -36,7 +40,7 @@ class BackpointersWritable implements Writable {
     value.set(backpointers[0].length);
     value.write(dataOutput);
     for (int i = 0; i < backpointers.length; ++i) {
-      for (int j = 0; j < backpointers[i].length; ++i) {
+      for (int j = 0; j < backpointers[i].length; ++j) {
         value.set(backpointers[i][j]);
         value.write(dataOutput);
       }
@@ -52,7 +56,7 @@ class BackpointersWritable implements Writable {
     final int nOfHiddenStates = value.get();
     backpointers = new int[nOfObservations][nOfHiddenStates];
     for (int i = 0; i < backpointers.length; ++i) {
-      for (int j = 0; j < backpointers[i].length; ++i) {
+      for (int j = 0; j < backpointers[i].length; ++j) {
         value.readFields(dataInput);
         backpointers[i][j] = value.get();
       }
