@@ -120,6 +120,40 @@ public class BaumWelchTrainer {
       final DataOutputStream stream  = new DataOutputStream(new FileOutputStream(output));
       LossyHmmSerializer.serialize(trainedModel, stream);
       stream.close();
+
+      //printing tranied model
+      System.out.println("Initial probabilities: ");
+      for (int i = 0; i < trainedModel.getNrOfHiddenStates(); ++i)
+        System.out.print(i + " ");
+      System.out.println();
+      for (int i = 0; i < trainedModel.getNrOfHiddenStates(); ++i)
+        System.out.print(trainedModel.getInitialProbabilities().get(i) + " ");
+      System.out.println();
+
+      System.out.println("Transition matrix:");
+      System.out.print("  ");
+      for (int i = 0; i < trainedModel.getNrOfHiddenStates(); ++i)
+        System.out.print(i + " ");
+      System.out.println();
+      for (int i = 0; i < trainedModel.getNrOfHiddenStates(); ++i) {
+        System.out.print(i + " ");
+        for (int j = 0; j < trainedModel.getNrOfHiddenStates(); ++j) {
+          System.out.print(trainedModel.getTransitionMatrix().get(i, j) + " ");
+        }
+        System.out.println();
+      }
+      System.out.println("Emission matrix: ");
+      System.out.print("  ");
+      for (int i = 0; i < trainedModel.getNrOfOutputStates(); ++i)
+        System.out.print(i + " ");
+      System.out.println();
+      for (int i = 0; i < trainedModel.getNrOfHiddenStates(); ++i) {
+        System.out.print(i + " ");
+        for (int j = 0; j < trainedModel.getNrOfOutputStates(); ++j) {
+          System.out.print(trainedModel.getEmissionMatrix().get(i, j) + " ");
+        }
+        System.out.println();
+      }
     } catch (OptionException e) {
       CommandLineUtil.printHelp(optionGroup);
     }
