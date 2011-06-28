@@ -23,8 +23,11 @@ class SequenceKey implements WritableComparable<SequenceKey> {
   }
 
   public SequenceKey next() {
-    final SequenceKey next = new SequenceKey(name.toString(), chunkNumber.get()+1);
-    return next;
+    return new SequenceKey(name.toString(), chunkNumber.get()+1);
+  }
+
+  public SequenceKey previous() {
+    return new SequenceKey(name.toString(), chunkNumber.get()-1);
   }
 
   public String getSequenceName() {

@@ -28,4 +28,14 @@ class InitialProbabilitiesWritable extends ArrayWritable {
 
     return probabilities;
   }
+
+  public int getMostProbableState() {
+    final Writable[] data = get();
+    int maxState = 0;
+    for (int i = 0; i < data.length; ++i) {
+      if (((DoubleWritable)data[i]).get() < ((DoubleWritable)data[maxState]).get())
+        maxState = i;
+    }
+    return maxState;
+  }
 }

@@ -17,8 +17,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Iterator;
 
-class ForwardViterbiReducer extends Reducer<SequenceKey, GenericViterbiData, SequenceKey, GenericViterbiData> {
+class ForwardViterbiReducer extends Reducer<SequenceKey, ForwardViterbiData, SequenceKey, ForwardViterbiData> {
   private SequenceFile.Writer backpointersWriter;
+  private SequenceFile.Writer lastStatesWriter;
   private HmmModel model;
 
   private static Logger log = LoggerFactory.getLogger(ForwardViterbiReducer.class);
@@ -27,10 +28,16 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, GenericViterbiData, Seq
               throws IOException,
                      InterruptedException {
     final Configuration configuration = context.getConfiguration();
-    final String intermediateUri = (context.getConfiguration().get("hmm.intermediate")) ;
-    final FileSystem intermediateFileSystem = FileSystem.get(URI.create(intermediateUri), context.getConfiguration());
+    final String backpointersPath = (context.getConfiguration().get("hmm.backpointers"));
+    final String lastStatesPath = (context.getConfiguration().get("hmm.laststates"));
+    final FileSystem intermediateFileSystem = FileSystem.get(URI.create(backpointersPath),
+      context.getConfiguration());
     backpointersWriter = SequenceFile.createWriter(intermediateFileSystem,
-      context.getConfiguration(), new Path(intermediateUri, context.getJobID().toString()), SequenceKey.class, BackpointersWritable.class);
+      context.getConfiguration(), new Path(backpointersPath, context.getJobID().toString()),
+      SequenceKey.class, BackwardViterbiData.class, SequenceFile.CompressionType.RECORD);
+    lastStatesWriter = SequenceFile.createWriter(intermediateFileSystem,
+      context.getConfiguration(), new Path(lastStatesPath, context.getJobID().toString()),
+      SequenceKey.class, BackwardViterbiData.class, SequenceFile.CompressionType.BLOCK);
 
     final String hmmModelFileName = configuration.get("hmm.model");
     log.info("Trying to load model with name " + hmmModelFileName);
@@ -53,19 +60,22 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, GenericViterbiData, Seq
                 throws IOException,
                        InterruptedException {
     backpointersWriter.close();
+    lastStatesWriter.close();
   }
 
-  public void reduce(SequenceKey key, Iterable<GenericViterbiData> values,
+  public void reduce(SequenceKey key, Iterable<ForwardViterbiData> values,
                      Context context) throws IOException, InterruptedException {
     log.debug("Reducing data for " + key.toString());
-    final Iterator<GenericViterbiData> iterator = values.iterator();
+    final Iterator<ForwardViterbiData> iterator = values.iterator();
     double[] probabilities = null;
     int[] observations = null;
+    InitialProbabilitiesWritable lastProbabilities = null;
     while (iterator.hasNext()) {
-      final GenericViterbiData data = iterator.next();
+      final ForwardViterbiData data = iterator.next();
       final Writable value = data.get();
       if (value instanceof InitialProbabilitiesWritable) {
-        probabilities = ((InitialProbabilitiesWritable) value).toProbabilityArray();
+        lastProbabilities =  ((InitialProbabilitiesWritable) value);
+        probabilities = lastProbabilities.toProbabilityArray();
         log.debug("Successfully read probabilities from the previous step");
       }
       else if (value instanceof ObservedSequenceWritable) {
@@ -83,14 +93,17 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, GenericViterbiData, Seq
 
     if (observations == null) {
       log.debug("Seems like all observations were processed at the previous step, nothing to do");
+      assert lastProbabilities != null;
+      lastStatesWriter.append(key,
+        new BackwardViterbiData(lastProbabilities.getMostProbableState()));
       return;
     }
 
     log.info("Performing forward pass on " + key.getSequenceName() + "/" + key.getChunkNumber());
     final BackpointersWritable backpointers = new BackpointersWritable(
       forward(observations, model, probabilities));
-    backpointersWriter.append(key, backpointers);
-    context.write(key.next(), GenericViterbiData.fromInitialProbabilities(
+    backpointersWriter.append(key, new BackwardViterbiData(backpointers));
+    context.write(key, ForwardViterbiData.fromInitialProbabilities(
       new InitialProbabilitiesWritable(probabilities)));
   }
 

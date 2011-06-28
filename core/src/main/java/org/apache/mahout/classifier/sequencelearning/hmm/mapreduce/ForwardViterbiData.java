@@ -5,20 +5,24 @@ import org.apache.hadoop.io.Writable;
 
 /*
  */
-class GenericViterbiData extends GenericWritable {
+class ForwardViterbiData extends GenericWritable {
   static Class[] classes = new Class[] {
     ObservedSequenceWritable.class,
     InitialProbabilitiesWritable.class
   };
 
-  public static GenericViterbiData fromObservedSequence(ObservedSequenceWritable sequence) {
-    final GenericViterbiData data = new GenericViterbiData();
+  public ForwardViterbiData() {
+
+  }
+
+  public static ForwardViterbiData fromObservedSequence(ObservedSequenceWritable sequence) {
+    final ForwardViterbiData data = new ForwardViterbiData();
     data.set(sequence);
     return data;
   }
 
-  public static GenericViterbiData fromInitialProbabilities(InitialProbabilitiesWritable probs) {
-    final GenericViterbiData data = new GenericViterbiData();
+  public static ForwardViterbiData fromInitialProbabilities(InitialProbabilitiesWritable probs) {
+    final ForwardViterbiData data = new ForwardViterbiData();
     data.set(probs);
     return data;
   }

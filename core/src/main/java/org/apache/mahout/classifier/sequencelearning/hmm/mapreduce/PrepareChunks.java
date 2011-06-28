@@ -14,7 +14,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.Text;
 import org.apache.mahout.common.CommandLineUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -110,13 +109,6 @@ public final class PrepareChunks {
       final Scanner scanner = new Scanner(reader);
 
       for (int currentChunk = 0; ; ++currentChunk) {
-        if (outputs.size() <= currentChunk) {
-          log.debug("Opening new sequence file for chunk #" + currentChunk);
-          final SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
-            new Path(outputPath, ((Integer)currentChunk).toString()),
-            SequenceKey.class, GenericViterbiData.class);
-          outputs.add(writer);
-        }
         log.info("Splitting " + inputName + ", chunk #" + currentChunk);
         final int[] chunkObservations = new int[chunkSize];
         int observationsRead;
@@ -125,12 +117,22 @@ public final class PrepareChunks {
           chunkObservations[observationsRead] = scanner.nextInt();
         }
 
-        final ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
-          observationsRead);
+        if (observationsRead > 0) {
+          if (outputs.size() <= currentChunk) {
+            log.debug("Opening new sequence file for chunk #" + currentChunk);
+            final SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
+              new Path(outputPath, ((Integer)currentChunk).toString()),
+              SequenceKey.class, ForwardViterbiData.class, SequenceFile.CompressionType.RECORD);
+            outputs.add(writer);
+          }
 
-        log.info(observationsRead + " observations to write to this chunk");
-        outputs.get(currentChunk).append(new SequenceKey(inputPath.getName(), currentChunk),
-          GenericViterbiData.fromObservedSequence(chunk));
+          final ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
+            observationsRead);
+
+          log.info(observationsRead + " observations to write to this chunk");
+          outputs.get(currentChunk).append(new SequenceKey(inputPath.getName(), currentChunk),
+            ForwardViterbiData.fromObservedSequence(chunk));
+        }
 
         if (observationsRead < chunkSize)
           break;
