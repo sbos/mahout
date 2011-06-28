@@ -17,9 +17,8 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Iterator;
 
-class ForwardViterbiReducer extends Reducer<SequenceKey, ForwardViterbiData, SequenceKey, ForwardViterbiData> {
+class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, SequenceKey, ViterbiDataWritable> {
   private SequenceFile.Writer backpointersWriter;
-  private SequenceFile.Writer lastStatesWriter;
   private HmmModel model;
 
   private static Logger log = LoggerFactory.getLogger(ForwardViterbiReducer.class);
@@ -27,19 +26,15 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ForwardViterbiData, Seq
   protected void setup(Reducer.Context context)
               throws IOException,
                      InterruptedException {
-    final Configuration configuration = context.getConfiguration();
-    final String backpointersPath = (context.getConfiguration().get("hmm.backpointers"));
-    final String lastStatesPath = (context.getConfiguration().get("hmm.laststates"));
-    final FileSystem intermediateFileSystem = FileSystem.get(URI.create(backpointersPath),
+    Configuration configuration = context.getConfiguration();
+    String backpointersPath = (context.getConfiguration().get("hmm.backpointers"));
+    FileSystem intermediateFileSystem = FileSystem.get(URI.create(backpointersPath),
       context.getConfiguration());
     backpointersWriter = SequenceFile.createWriter(intermediateFileSystem,
       context.getConfiguration(), new Path(backpointersPath, context.getJobID().toString()),
-      SequenceKey.class, BackwardViterbiData.class, SequenceFile.CompressionType.RECORD);
-    lastStatesWriter = SequenceFile.createWriter(intermediateFileSystem,
-      context.getConfiguration(), new Path(lastStatesPath, context.getJobID().toString()),
-      SequenceKey.class, BackwardViterbiData.class, SequenceFile.CompressionType.BLOCK);
+      SequenceKey.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
 
-    final String hmmModelFileName = configuration.get("hmm.model");
+    String hmmModelFileName = configuration.get("hmm.model");
     log.info("Trying to load model with name " + hmmModelFileName);
     for (Path cachePath: DistributedCache.getLocalCacheFiles(configuration)) {
       if (cachePath.getName().endsWith(hmmModelFileName))
@@ -60,21 +55,20 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ForwardViterbiData, Seq
                 throws IOException,
                        InterruptedException {
     backpointersWriter.close();
-    lastStatesWriter.close();
   }
 
-  public void reduce(SequenceKey key, Iterable<ForwardViterbiData> values,
+  public void reduce(SequenceKey key, Iterable<ViterbiDataWritable> values,
                      Context context) throws IOException, InterruptedException {
     log.debug("Reducing data for " + key.toString());
-    final Iterator<ForwardViterbiData> iterator = values.iterator();
+    Iterator<ViterbiDataWritable> iterator = values.iterator();
     double[] probabilities = null;
     int[] observations = null;
-    InitialProbabilitiesWritable lastProbabilities = null;
+    HiddenStateProbabilitiesWritable lastProbabilities;
     while (iterator.hasNext()) {
-      final ForwardViterbiData data = iterator.next();
-      final Writable value = data.get();
-      if (value instanceof InitialProbabilitiesWritable) {
-        lastProbabilities =  ((InitialProbabilitiesWritable) value);
+      ViterbiDataWritable data = iterator.next();
+      Writable value = data.get();
+      if (value instanceof HiddenStateProbabilitiesWritable) {
+        lastProbabilities =  ((HiddenStateProbabilitiesWritable) value);
         probabilities = lastProbabilities.toProbabilityArray();
         log.debug("Successfully read probabilities from the previous step");
       }
@@ -90,33 +84,29 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ForwardViterbiData, Seq
       log.debug("Seems like it's first chunk, so defining probabilities to null");
       probabilities = new double[model.getNrOfHiddenStates()];
     }
-
     if (observations == null) {
-      log.debug("Seems like all observations were processed at the previous step, nothing to do");
-      assert lastProbabilities != null;
-      lastStatesWriter.append(key,
-        new BackwardViterbiData(lastProbabilities.getMostProbableState()));
+      log.debug("Seems like everything is processed already, skipping this sequence");
       return;
     }
 
     log.info("Performing forward pass on " + key.getSequenceName() + "/" + key.getChunkNumber());
-    final BackpointersWritable backpointers = new BackpointersWritable(
+    BackpointersWritable backpointers = new BackpointersWritable(
       forward(observations, model, probabilities));
-    backpointersWriter.append(key, new BackwardViterbiData(backpointers));
-    context.write(key, ForwardViterbiData.fromInitialProbabilities(
-      new InitialProbabilitiesWritable(probabilities)));
+    backpointersWriter.append(key, new ViterbiDataWritable(backpointers));
+    context.write(key, ViterbiDataWritable.fromInitialProbabilities(
+      new HiddenStateProbabilitiesWritable(probabilities)));
   }
 
   private static int[][] forward(int[] observations, HmmModel model, double[] probs) {
-    final double[] nextProbs = new double[model.getNrOfHiddenStates()];
-    final int[][] backpoints = new int[observations.length][model.getNrOfHiddenStates()];
+    double[] nextProbs = new double[model.getNrOfHiddenStates()];
+    int[][] backpoints = new int[observations.length][model.getNrOfHiddenStates()];
 
     for (int i = 0; i < observations.length; ++i) {
       for (int t = 0; t < model.getNrOfHiddenStates(); ++t) {
         int maxState = 0;
         double maxProb = 0;
         for (int h = 0; h < model.getNrOfHiddenStates(); ++h) {
-          final double currentProb = Math.log(model.getTransitionMatrix().get(t, h)) + probs[h];
+          double currentProb = Math.log(model.getTransitionMatrix().get(t, h)) + probs[h];
           if (maxProb < currentProb) {
             maxState = h;
             maxProb = currentProb;

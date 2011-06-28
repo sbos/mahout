@@ -6,12 +6,12 @@ import org.apache.hadoop.io.Writable;
 
 /**
  */
-class InitialProbabilitiesWritable extends ArrayWritable {
-  public InitialProbabilitiesWritable() {
+class HiddenStateProbabilitiesWritable extends ArrayWritable {
+  public HiddenStateProbabilitiesWritable() {
     super(DoubleWritable.class);
   }
 
-  public InitialProbabilitiesWritable(double[] probabilities) {
+  public HiddenStateProbabilitiesWritable(double[] probabilities) {
     super(DoubleWritable.class);
     final Writable[] values = new Writable[probabilities.length];
     for (int i = 0; i < probabilities.length; ++i)

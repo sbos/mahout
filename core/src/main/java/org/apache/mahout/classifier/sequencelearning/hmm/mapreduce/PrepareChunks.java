@@ -122,7 +122,7 @@ public final class PrepareChunks {
             log.debug("Opening new sequence file for chunk #" + currentChunk);
             final SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
               new Path(outputPath, ((Integer)currentChunk).toString()),
-              SequenceKey.class, ForwardViterbiData.class, SequenceFile.CompressionType.RECORD);
+              SequenceKey.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
             outputs.add(writer);
           }
 
@@ -131,7 +131,7 @@ public final class PrepareChunks {
 
           log.info(observationsRead + " observations to write to this chunk");
           outputs.get(currentChunk).append(new SequenceKey(inputPath.getName(), currentChunk),
-            ForwardViterbiData.fromObservedSequence(chunk));
+            ViterbiDataWritable.fromObservedSequence(chunk));
         }
 
         if (observationsRead < chunkSize)

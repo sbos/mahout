@@ -10,7 +10,7 @@ import org.apache.mahout.math.VarIntWritable;
 import java.io.IOException;
 import java.net.URI;
 
-class BackwardViterbiReducer extends Reducer<SequenceKey, BackwardViterbiData, SequenceKey, BackwardViterbiData> {
+class BackwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, SequenceKey, ViterbiDataWritable> {
   private String path;
 
   @Override
@@ -21,7 +21,7 @@ class BackwardViterbiReducer extends Reducer<SequenceKey, BackwardViterbiData, S
   }
 
   @Override
-  public void reduce(SequenceKey key, Iterable<BackwardViterbiData> values,
+  public void reduce(SequenceKey key, Iterable<ViterbiDataWritable> values,
                      Context context) throws IOException, InterruptedException {
     final Configuration configuration = context.getConfiguration();
     final String sequenceName = key.getSequenceName();
@@ -32,12 +32,16 @@ class BackwardViterbiReducer extends Reducer<SequenceKey, BackwardViterbiData, S
     int[][] backpointers = null;
     int lastState = -1;
 
-    for (BackwardViterbiData data: values) {
+    for (ViterbiDataWritable data: values) {
       if (data.get() instanceof BackpointersWritable) {
         backpointers = ((BackpointersWritable) data.get()).backpointers;
       }
       else if (data.get() instanceof VarIntWritable) {
         lastState = ((VarIntWritable) data.get()).get();
+      }
+      else if (data.get() instanceof HiddenStateProbabilitiesWritable) {
+        if (lastState == -1)
+          lastState = ((HiddenStateProbabilitiesWritable) data.get()).getMostProbableState();
       }
       else {
         throw new IOException("Unsupported backward data provided");
@@ -45,7 +49,7 @@ class BackwardViterbiReducer extends Reducer<SequenceKey, BackwardViterbiData, S
     }
 
     if (backpointers == null && lastState != -1) {
-      context.write(key.previous(), new BackwardViterbiData(lastState));
+      context.write(key.previous(), new ViterbiDataWritable(lastState));
       return;
     }
     else if (backpointers == null)
@@ -56,15 +60,17 @@ class BackwardViterbiReducer extends Reducer<SequenceKey, BackwardViterbiData, S
 
     final int chunkLength = backpointers.length;
     final VarIntWritable[] path = new VarIntWritable[chunkLength];
+    for (int i = 0; i < path.length; ++i)
+      path[i] = new VarIntWritable();
     path[chunkLength - 1].set(lastState);
     for (int i = path.length-2; i >= 0; --i) {
       path[i].set(backpointers[i][path[i+1].get()]);
     }
 
-    sequenceWriter.append(new VarIntWritable(key.getChunkNumber()), new HiddenSequenceWritable(path));
+    sequenceWriter.append(new IntWritable(key.getChunkNumber()), new HiddenSequenceWritable(path));
     sequenceWriter.close();
 
     context.write(new SequenceKey(sequenceName, key.getChunkNumber() - 1),
-      new BackwardViterbiData(path[0].get()));
+      new ViterbiDataWritable(path[0].get()));
   }
 }

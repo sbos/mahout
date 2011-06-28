@@ -97,17 +97,17 @@ public class ParallelViterbiDriver {
     logger.info("Running backward Viterbi pass");
 
     final int chunkCount = getChunkCount();
-    for (int i = chunkCount; i >= 0; --i) {
+    for (int i = chunkCount-1; i >= 0; --i) {
       logger.info("Processing chunk " + (i+1) + "/" + chunkCount);
       final Job job = new Job(configuration, "viterbi-backward-" + i);
       job.setMapperClass(Mapper.class);
       job.setReducerClass(BackwardViterbiReducer.class);
       job.setInputFormatClass(SequenceFileInputFormat.class);
       job.setOutputKeyClass(SequenceKey.class);
-      job.setOutputValueClass(BackwardViterbiData.class);
+      job.setOutputValueClass(ViterbiDataWritable.class);
       job.setOutputFormatClass(SequenceFileOutputFormat.class);
       job.setMapOutputKeyClass(SequenceKey.class);
-      job.setMapOutputValueClass(BackwardViterbiData.class);
+      job.setMapOutputValueClass(ViterbiDataWritable.class);
 
       SequenceFileOutputFormat.setCompressOutput(job, true);
       SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.BLOCK);
@@ -116,9 +116,9 @@ public class ParallelViterbiDriver {
 
       FileOutputFormat.setOutputPath(job, getLastStatePath(i));
       FileInputFormat.addInputPath(job, getBackpointersPath(i));
-      if (i < chunkCount)
+      if (i < chunkCount-1)
         FileInputFormat.addInputPath(job, getLastStatePath(i+1));
-      FileInputFormat.addInputPath(job, getLastStatePathMR(i));
+      FileInputFormat.addInputPath(job, getProbabilitiesPath(i));
       final Configuration jobConfiguration = job.getConfiguration();
       jobConfiguration.set("hmm.output", output);
 
@@ -153,10 +153,10 @@ public class ParallelViterbiDriver {
       job.setReducerClass(ForwardViterbiReducer.class);
       job.setInputFormatClass(SequenceFileInputFormat.class);
       job.setMapOutputKeyClass(SequenceKey.class);
-      job.setMapOutputValueClass(ForwardViterbiData.class);
+      job.setMapOutputValueClass(ViterbiDataWritable.class);
       job.setOutputFormatClass(SequenceFileOutputFormat.class);
       job.setOutputKeyClass(SequenceKey.class);
-      job.setOutputValueClass(ForwardViterbiData.class);
+      job.setOutputValueClass(ViterbiDataWritable.class);
 
       SequenceFileOutputFormat.setCompressOutput(job, true);
       SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.BLOCK);
@@ -166,8 +166,7 @@ public class ParallelViterbiDriver {
       final String chunk = ((Integer) i).toString();
       final Path chunkInput = new Path(inputs, chunk);
       final Path chunkIntermediate = getProbabilitiesPath(i);
-      if (chunkInput.getFileSystem(configuration).exists(chunkInput))
-        FileInputFormat.addInputPath(job, chunkInput);
+      FileInputFormat.addInputPath(job, chunkInput);
       FileOutputFormat.setOutputPath(job, chunkIntermediate);
       if (i > 0) {
         //adding output of previous step
@@ -177,7 +176,6 @@ public class ParallelViterbiDriver {
       final Configuration jobConfiguration = job.getConfiguration();
       jobConfiguration.setInt("hmm.chunk_number", i);
       jobConfiguration.set("hmm.backpointers", intermediate + "/backpointers/" + chunk);
-      jobConfiguration.set("hmm.laststates", intermediate + "/laststates-mr/" + chunk);
       final String modelName = new Path(model).getName();
 
       jobConfiguration.set("hmm.model", modelName);
