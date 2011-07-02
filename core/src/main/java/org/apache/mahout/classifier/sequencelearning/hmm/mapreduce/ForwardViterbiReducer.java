@@ -8,6 +8,7 @@ import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.mahout.classifier.sequencelearning.hmm.HmmModel;
+import org.apache.mahout.classifier.sequencelearning.hmm.LossyHmmSerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +41,7 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, Se
       if (cachePath.getName().endsWith(hmmModelFileName))
       {
         DataInputStream modelStream = new DataInputStream(new FileInputStream(cachePath.toString())) ;
-        model = LossyHmmModelSerializer.deserialize(modelStream);
+        model = LossyHmmSerializer.deserialize(modelStream);
         log.info("Model loaded");
         modelStream.close();
         break;

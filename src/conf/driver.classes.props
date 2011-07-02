@@ -40,3 +40,6 @@ org.apache.mahout.cf.taste.hadoop.als.ParallelALSFactorizationJob = parallelALS 
 org.apache.mahout.cf.taste.hadoop.als.PredictionJob = predictFromFactorization : predict preferences from a factorization of a rating matrix
 org.apache.mahout.classifier.sequencelearning.hmm.mapreduce.PrepareChunks = hmmchunks : divide input sequences for HMM to chunks
 org.apache.mahout.classifier.sequencelearning.hmm.mapreduce.ParallelViterbiDriver = pviterbi : Parallel Viterbi
+org.apache.mahout.classifier.sequencelearning.hmm.BaumWelchTrainer = baumwelch : Baum-Welch algorithm for unsupervised HMM training
+org.apache.mahout.classifier.sequencelearning.hmm.ViterbiEvaluator = viterbi : Viterbi decoding of hidden states from given output states sequence
+org.apache.mahout.classifier.sequencelearning.hmm.RandomSequenceGenerator = hmmpredict : Generate random sequence of observations by given HMM

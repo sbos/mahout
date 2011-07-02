@@ -25,7 +25,6 @@ import org.apache.hadoop.fs.Path;
 
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
@@ -35,7 +34,6 @@ import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.cf.taste.hadoop.EntityEntityWritable;
 import org.apache.mahout.cf.taste.hadoop.EntityPrefWritable;
 import org.apache.mahout.cf.taste.hadoop.MaybePruneRowsMapper;
-import org.apache.mahout.cf.taste.hadoop.TasteHadoopUtils;
 import org.apache.mahout.cf.taste.hadoop.ToItemPrefsMapper;
 import org.apache.mahout.cf.taste.hadoop.item.ItemIDIndexMapper;
 import org.apache.mahout.cf.taste.hadoop.item.ItemIDIndexReducer;
@@ -125,7 +123,6 @@ public final class ItemSimilarityJob extends AbstractJob {
     Path outputPath = getOutputPath();
 
     Path itemIDIndexPath = getTempPath("itemIDIndex");
-    Path countUsersPath = getTempPath("countUsers");
     Path userVectorPath = getTempPath("userVectors");
     Path itemUserMatrixPath = getTempPath("itemUserMatrix");
     Path similarityMatrixPath = getTempPath("similarityMatrix");
@@ -142,6 +139,7 @@ public final class ItemSimilarityJob extends AbstractJob {
       itemIDIndex.waitForCompletion(true);
     }
 
+    int numberOfUsers = 0;
 
     if (shouldRunNextPhase(parsedArgs, currentPhase)) {
       Job toUserVector = prepareJob(inputPath,
@@ -157,23 +155,8 @@ public final class ItemSimilarityJob extends AbstractJob {
       toUserVector.getConfiguration().setBoolean(RecommenderJob.BOOLEAN_DATA, booleanData);
       toUserVector.getConfiguration().setInt(ToUserVectorReducer.MIN_PREFERENCES_PER_USER, minPrefsPerUser);
       toUserVector.waitForCompletion(true);
-    }
 
-    if (shouldRunNextPhase(parsedArgs, currentPhase)) {
-      Job countUsers = prepareJob(userVectorPath,
-                                  countUsersPath,
-                                  SequenceFileInputFormat.class,
-                                  CountUsersMapper.class,
-                                  CountUsersKeyWritable.class,
-                                  VarLongWritable.class,
-                                  CountUsersReducer.class,
-                                  VarIntWritable.class,
-                                  NullWritable.class,
-                                  TextOutputFormat.class);
-      countUsers.setCombinerClass(CountUsersCombiner.class);
-      countUsers.setPartitionerClass(CountUsersKeyWritable.CountUsersPartitioner.class);
-      countUsers.setGroupingComparatorClass(CountUsersKeyWritable.CountUsersGroupComparator.class);
-      countUsers.waitForCompletion(true);
+      numberOfUsers = (int) toUserVector.getCounters().findCounter(ToUserVectorReducer.Counters.USERS).getValue();
     }
 
     if (shouldRunNextPhase(parsedArgs, currentPhase)) {
@@ -191,8 +174,6 @@ public final class ItemSimilarityJob extends AbstractJob {
           maxCooccurrencesPerItem);
       maybePruneAndTransponse.waitForCompletion(true);
     }
-
-    int numberOfUsers = TasteHadoopUtils.readIntFromFile(getConf(), countUsersPath);
 
     /* Once DistributedRowMatrix uses the hadoop 0.20 API, we should refactor this call to something like
      * new DistributedRowMatrix(...).rowSimilarity(...) */
