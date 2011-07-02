@@ -26,13 +26,13 @@ class ViterbiDataWritable extends GenericWritable {
   }
 
   public static ViterbiDataWritable fromObservedSequence(ObservedSequenceWritable sequence) {
-    final ViterbiDataWritable data = new ViterbiDataWritable();
+    ViterbiDataWritable data = new ViterbiDataWritable();
     data.set(sequence);
     return data;
   }
 
   public static ViterbiDataWritable fromInitialProbabilities(HiddenStateProbabilitiesWritable probs) {
-    final ViterbiDataWritable data = new ViterbiDataWritable();
+    ViterbiDataWritable data = new ViterbiDataWritable();
     data.set(probs);
     return data;
   }

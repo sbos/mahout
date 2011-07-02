@@ -35,7 +35,7 @@ class BackpointersWritable implements Writable {
 
   @Override
   public void write(DataOutput dataOutput) throws IOException {
-    final VarIntWritable value = new VarIntWritable(backpointers.length);
+    VarIntWritable value = new VarIntWritable(backpointers.length);
     value.write(dataOutput);
     value.set(backpointers[0].length);
     value.write(dataOutput);
@@ -49,11 +49,11 @@ class BackpointersWritable implements Writable {
 
   @Override
   public void readFields(DataInput dataInput) throws IOException {
-    final VarIntWritable value = new VarIntWritable();
+    VarIntWritable value = new VarIntWritable();
     value.readFields(dataInput);
-    final int nOfObservations = value.get();
+    int nOfObservations = value.get();
     value.readFields(dataInput);
-    final int nOfHiddenStates = value.get();
+    int nOfHiddenStates = value.get();
     backpointers = new int[nOfObservations][nOfHiddenStates];
     for (int i = 0; i < backpointers.length; ++i) {
       for (int j = 0; j < backpointers[i].length; ++j) {

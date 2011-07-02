@@ -39,7 +39,7 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, Se
     for (Path cachePath: DistributedCache.getLocalCacheFiles(configuration)) {
       if (cachePath.getName().endsWith(hmmModelFileName))
       {
-        final DataInputStream modelStream = new DataInputStream(new FileInputStream(cachePath.toString())) ;
+        DataInputStream modelStream = new DataInputStream(new FileInputStream(cachePath.toString())) ;
         model = LossyHmmModelSerializer.deserialize(modelStream);
         log.info("Model loaded");
         modelStream.close();

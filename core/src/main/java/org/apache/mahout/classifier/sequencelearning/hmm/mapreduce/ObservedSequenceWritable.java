@@ -70,7 +70,7 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
 
   @Override
   public void write(DataOutput dataOutput) throws IOException {
-    final VarIntWritable value = new VarIntWritable(getLength());
+    VarIntWritable value = new VarIntWritable(getLength());
     value.write(dataOutput);
     for (int i = 0; i < getLength(); ++i) {
       value.set(data[i]);
@@ -80,9 +80,9 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
 
   @Override
   public void readFields(DataInput dataInput) throws IOException {
-    final VarIntWritable value = new VarIntWritable();
+    VarIntWritable value = new VarIntWritable();
     value.readFields(dataInput);
-    final int length = value.get();
+    int length = value.get();
     setLength(length);
     for (int i = 0; i < length; ++i) {
       value.readFields(dataInput);
@@ -92,12 +92,12 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
 
   @Override
   public int compareTo(ObservedSequenceWritable observedSequenceWritable) {
-    final int lengthDifference = getLength() - observedSequenceWritable.getLength();
+    int lengthDifference = getLength() - observedSequenceWritable.getLength();
     if (lengthDifference != 0)
       return lengthDifference;
-    final int[] otherData = observedSequenceWritable.getData();
+    int[] otherData = observedSequenceWritable.getData();
     for (int i = 0; i < getLength(); ++i) {
-      final int difference = data[i] - otherData[i];
+      int difference = data[i] - otherData[i];
       if (difference != 0)
         return difference;
     }

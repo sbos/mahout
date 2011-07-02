@@ -23,10 +23,10 @@ class BackwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, S
   @Override
   public void reduce(SequenceKey key, Iterable<ViterbiDataWritable> values,
                      Context context) throws IOException, InterruptedException {
-    final Configuration configuration = context.getConfiguration();
-    final String sequenceName = key.getSequenceName();
-    final FileSystem fs = FileSystem.get(URI.create(path), configuration);
-    final MapFile.Writer sequenceWriter = new MapFile.Writer(configuration, fs, path + "/" + sequenceName,
+    Configuration configuration = context.getConfiguration();
+    String sequenceName = key.getSequenceName();
+    FileSystem fs = FileSystem.get(URI.create(path), configuration);
+    MapFile.Writer sequenceWriter = new MapFile.Writer(configuration, fs, path + "/" + sequenceName,
       IntWritable.class, HiddenSequenceWritable.class);
 
     int[][] backpointers = null;
@@ -58,8 +58,8 @@ class BackwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, S
     if (lastState < 0)
       throw new IllegalStateException("Last state was not initialized");
 
-    final int chunkLength = backpointers.length;
-    final VarIntWritable[] path = new VarIntWritable[chunkLength];
+    int chunkLength = backpointers.length;
+    VarIntWritable[] path = new VarIntWritable[chunkLength];
     for (int i = 0; i < path.length; ++i)
       path[i] = new VarIntWritable();
     path[chunkLength - 1].set(lastState);

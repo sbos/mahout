@@ -13,7 +13,7 @@ class HiddenStateProbabilitiesWritable extends ArrayWritable {
 
   public HiddenStateProbabilitiesWritable(double[] probabilities) {
     super(DoubleWritable.class);
-    final Writable[] values = new Writable[probabilities.length];
+    Writable[] values = new Writable[probabilities.length];
     for (int i = 0; i < probabilities.length; ++i)
       values[i] = new DoubleWritable(probabilities[i]);
     set(values);
@@ -30,7 +30,7 @@ class HiddenStateProbabilitiesWritable extends ArrayWritable {
   }
 
   public int getMostProbableState() {
-    final Writable[] data = get();
+    Writable[] data = get();
     int maxState = 0;
     for (int i = 0; i < data.length; ++i) {
       if (((DoubleWritable)data[i]).get() < ((DoubleWritable)data[maxState]).get())

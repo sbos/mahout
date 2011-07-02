@@ -43,43 +43,43 @@ public class ParallelViterbiDriver {
   }
 
   public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
-    final DefaultOptionBuilder optionBuilder = new DefaultOptionBuilder();
-    final ArgumentBuilder argumentBuilder = new ArgumentBuilder();
+    DefaultOptionBuilder optionBuilder = new DefaultOptionBuilder();
+    ArgumentBuilder argumentBuilder = new ArgumentBuilder();
 
-    final Option inputOption = optionBuilder.withLongName("input").
+    Option inputOption = optionBuilder.withLongName("input").
       withShortName("i").withRequired(true).
       withArgument(argumentBuilder.withMinimum(1).withMaximum(1).withName("path").create()).create();
 
-    final Option outputOption = optionBuilder.withLongName("output").
+    Option outputOption = optionBuilder.withLongName("output").
       withShortName("o").withRequired(true).
       withArgument(argumentBuilder.withMinimum(1).withMaximum(1).
         withName("path").create()).create();
 
-    final Option modelOption = optionBuilder.withLongName("model").
+    Option modelOption = optionBuilder.withLongName("model").
       withShortName("m").withRequired(true).
       withArgument(argumentBuilder.withMinimum(1).withMaximum(1).
         withName("path").create()).withDescription("Serialized HMM model").create();
 
-    final Option intermediateOption = optionBuilder.withLongName("intermediate").
+    Option intermediateOption = optionBuilder.withLongName("intermediate").
       withShortName("im").withRequired(true).
       withArgument(argumentBuilder.withMinimum(1).withMaximum(1).
         withName("path").withDefault("/tmp").create()).create();
 
-    final Group options = new GroupBuilder().withOption(inputOption).
+    Group options = new GroupBuilder().withOption(inputOption).
       withOption(outputOption).withOption(intermediateOption).
       withOption(modelOption).withName("Options").create();
 
     try {
-      final Parser parser = new Parser();
+      Parser parser = new Parser();
       parser.setGroup(options);
-      final CommandLine commandLine = parser.parse(args);
+      CommandLine commandLine = parser.parse(args);
 
-      final String inputs = (String) commandLine.getValue(inputOption);
-      final String output = (String) commandLine.getValue(outputOption);
-      final String intermediate = (String) commandLine.getValue(intermediateOption);
-      final String modelPath = (String) commandLine.getValue(modelOption);
+      String inputs = (String) commandLine.getValue(inputOption);
+      String output = (String) commandLine.getValue(outputOption);
+      String intermediate = (String) commandLine.getValue(intermediateOption);
+      String modelPath = (String) commandLine.getValue(modelOption);
 
-      final ParallelViterbiDriver driver = new ParallelViterbiDriver(inputs, output, intermediate, modelPath);
+      ParallelViterbiDriver driver = new ParallelViterbiDriver(inputs, output, intermediate, modelPath);
       driver.runForward();
       driver.runBackward();
     } catch (OptionException e) {
@@ -96,10 +96,10 @@ public class ParallelViterbiDriver {
   private void runBackward() throws IOException, ClassNotFoundException, InterruptedException {
     logger.info("Running backward Viterbi pass");
 
-    final int chunkCount = getChunkCount();
+    int chunkCount = getChunkCount();
     for (int i = chunkCount-1; i >= 0; --i) {
       logger.info("Processing chunk " + (i+1) + "/" + chunkCount);
-      final Job job = new Job(configuration, "viterbi-backward-" + i);
+      Job job = new Job(configuration, "viterbi-backward-" + i);
       job.setMapperClass(Mapper.class);
       job.setReducerClass(BackwardViterbiReducer.class);
       job.setInputFormatClass(SequenceFileInputFormat.class);
@@ -119,7 +119,7 @@ public class ParallelViterbiDriver {
       if (i < chunkCount-1)
         FileInputFormat.addInputPath(job, getLastStatePath(i+1));
       FileInputFormat.addInputPath(job, getProbabilitiesPath(i));
-      final Configuration jobConfiguration = job.getConfiguration();
+      Configuration jobConfiguration = job.getConfiguration();
       jobConfiguration.set("hmm.output", output);
 
       job.submit();
@@ -148,7 +148,7 @@ public class ParallelViterbiDriver {
 
     for (int i = 0; i < getChunkCount(); ++i) {
       logger.info("Processing chunk " + (i+1) + "/" + getChunkCount());
-      final Job job = new Job(configuration, "viterbi-forward-" + i);
+      Job job = new Job(configuration, "viterbi-forward-" + i);
       job.setMapperClass(Mapper.class);
       job.setReducerClass(ForwardViterbiReducer.class);
       job.setInputFormatClass(SequenceFileInputFormat.class);
@@ -163,9 +163,9 @@ public class ParallelViterbiDriver {
 
       job.setJarByClass(ForwardViterbiReducer.class);
 
-      final String chunk = ((Integer) i).toString();
-      final Path chunkInput = new Path(inputs, chunk);
-      final Path chunkIntermediate = getProbabilitiesPath(i);
+      String chunk = ((Integer) i).toString();
+      Path chunkInput = new Path(inputs, chunk);
+      Path chunkIntermediate = getProbabilitiesPath(i);
       FileInputFormat.addInputPath(job, chunkInput);
       FileOutputFormat.setOutputPath(job, chunkIntermediate);
       if (i > 0) {
@@ -173,10 +173,10 @@ public class ParallelViterbiDriver {
         FileInputFormat.addInputPath(job, getProbabilitiesPath(i-1));
       }
 
-      final Configuration jobConfiguration = job.getConfiguration();
+      Configuration jobConfiguration = job.getConfiguration();
       jobConfiguration.setInt("hmm.chunk_number", i);
       jobConfiguration.set("hmm.backpointers", intermediate + "/backpointers/" + chunk);
-      final String modelName = new Path(model).getName();
+      String modelName = new Path(model).getName();
 
       jobConfiguration.set("hmm.model", modelName);
       DistributedCache.addCacheFile(URI.create(model), jobConfiguration);
