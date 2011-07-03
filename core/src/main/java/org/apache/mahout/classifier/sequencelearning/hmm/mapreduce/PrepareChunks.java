@@ -9,19 +9,20 @@ import org.apache.commons.cli2.builder.DefaultOptionBuilder;
 import org.apache.commons.cli2.builder.GroupBuilder;
 import org.apache.commons.cli2.commandline.Parser;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.*;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.PathFilter;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.MapFile;
 import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Writable;
 import org.apache.mahout.common.CommandLineUtil;
+import org.apache.mahout.math.VarIntWritable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.URI;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -32,15 +33,22 @@ import java.util.Scanner;
 public final class PrepareChunks {
   private final static Logger log = LoggerFactory.getLogger(PrepareChunks.class);
 
+  static {
+    URL.setURLStreamHandlerFactory(new FsUrlStreamHandlerFactory());
+  }
+
   public static void main(String[] args) throws IOException {
     DefaultOptionBuilder optionBuilder = new DefaultOptionBuilder();
     ArgumentBuilder argumentBuilder = new ArgumentBuilder();
 
-    Option chunkSizeOption = optionBuilder.withLongName("chunksize").withRequired(true).
+    Option chunkSizeOption = optionBuilder.withLongName("chunksize").withRequired(false).
       withDescription("a length (in observations number) of each chunk").withShortName("c").
       withArgument(argumentBuilder.withMaximum(1).withMinimum(1).withName("length").
-        withDefault("64").create()).
+        withDefault("65536").create()).
       create();
+
+    Option unchunkOption = optionBuilder.withLongName("unchunk").withRequired(false).
+      withDescription("Convert chunked output to raw file").withShortName("u").create();
 
     Option inputOption = optionBuilder.withLongName("input").withRequired(true).
       withDescription("directory contains observed sequences").withShortName("i").
@@ -52,34 +60,72 @@ public final class PrepareChunks {
 
     GroupBuilder groupBuilder = new GroupBuilder();
     Group group = groupBuilder.withName("Options").
-      withOption(chunkSizeOption).withOption(inputOption).withOption(outputOption).create();
+      withOption(chunkSizeOption).withOption(inputOption).withOption(outputOption).
+      withOption(unchunkOption).create();
 
     try {
       Parser parser = new Parser();
       parser.setGroup(group);
       CommandLine commandLine = parser.parse(args);
 
-      int chunkSize = Integer.parseInt((String) commandLine.getValue(chunkSizeOption));
-      List<String> inputs = commandLine.getValues(inputOption);
-      String output = (String) commandLine.getValue(outputOption);
+      Configuration configuration = new Configuration(false);
+      configuration.setQuietMode(false);
+      configuration.addResource(new Path("/opt/hadoop/conf/core-site.xml"));
+      configuration.addResource(new Path("/opt/hadoop/conf/hdfs-site.xml"));
+      configuration.addResource(new Path("/opt/hadoop/conf/mapred-site.xml"));
 
-      Configuration configuration = new Configuration();
+      if (commandLine.hasOption(unchunkOption)) {
+        String input = (String) commandLine.getValue(inputOption);
+        String output = (String) commandLine.getValue(outputOption);
 
-      //initializing output directory
-      FileSystem outputFS = FileSystem.get(URI.create(output), configuration);
-      Path outputPath = new Path(output);
-      outputFS.mkdirs(outputPath);
+        FileSystem inputFs = FileSystem.get(URI.create(input), configuration);
+        FileSystem outputFs = FileSystem.get(URI.create(output), configuration);
 
-      ChunkSplitter chunkSplitter = new ChunkSplitter(chunkSize, outputPath, configuration);
+        MapFile.Reader reader = new MapFile.Reader(inputFs, input, configuration);
+        OutputStream outputStream = outputFs.create(new Path(output));
+        PrintWriter writer = new PrintWriter(outputStream);
 
-      //processing each input
-      for (String input: inputs) {
-        FileSystem inputFS = FileSystem.get(URI.create(input), configuration);
-        Path inputPath = new Path(input);
-        inputFS.listStatus(inputPath, chunkSplitter);
+        IntWritable chunkNumber = new IntWritable(0);
+        HiddenSequenceWritable chunk = new HiddenSequenceWritable();
+
+        while (true) {
+          chunk = (HiddenSequenceWritable)reader.get(chunkNumber, chunk);
+          if (chunk == null)
+            break;
+
+          for (Writable element: chunk.get()) {
+            VarIntWritable state = (VarIntWritable)element;
+            writer.print(state.get());
+            writer.print(' ');
+          }
+          chunkNumber.set(chunkNumber.get() + 1);
+        }
+
+        writer.close();
+        outputStream.close();
+
+        reader.close();
+      } else {
+        int chunkSize = Integer.parseInt((String) commandLine.getValue(chunkSizeOption));
+        List<String> inputs = commandLine.getValues(inputOption);
+        String output = (String) commandLine.getValue(outputOption);
+
+        //initializing output directory
+        FileSystem outputFS = FileSystem.get(URI.create(output), configuration);
+        Path outputPath = new Path(output);
+        outputFS.mkdirs(outputPath);
+
+        ChunkSplitter chunkSplitter = new ChunkSplitter(chunkSize, outputPath, configuration);
+
+        //processing each input
+        for (String input: inputs) {
+          FileSystem inputFS = FileSystem.get(URI.create(input), configuration);
+          Path inputPath = new Path(input);
+          inputFS.listStatus(inputPath, chunkSplitter);
+        }
+
+        chunkSplitter.close();
       }
-
-      chunkSplitter.close();
     } catch (OptionException e) {
       CommandLineUtil.printHelp(group);
     }
