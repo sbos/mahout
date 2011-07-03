@@ -191,8 +191,6 @@ if [ "$MAHOUT_JOB" = "" ]; then
 fi
 
 # run it
-  echo "CLASSPATH: $CLASSPATH"
-
 if [ "$HADOOP_HOME" = "" ] || [ "$MAHOUT_LOCAL" != "" ] ; then
   if [ "$HADOOP_HOME" = "" ] ; then
     echo "no HADOOP_HOME set, running locally"

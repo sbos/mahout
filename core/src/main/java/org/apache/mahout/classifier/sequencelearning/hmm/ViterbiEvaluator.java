@@ -26,6 +26,7 @@ import org.apache.commons.cli2.builder.ArgumentBuilder;
 import org.apache.commons.cli2.builder.DefaultOptionBuilder;
 import org.apache.commons.cli2.builder.GroupBuilder;
 import org.apache.commons.cli2.commandline.Parser;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.mahout.common.CommandLineUtil;
 
 import java.io.DataInputStream;
@@ -71,6 +72,10 @@ public final class ViterbiEvaluator {
     Group optionGroup = new GroupBuilder().withOption(inputOption).
       withOption(outputOption).withOption(modelOption).withOption(likelihoodOption).
       withName("Options").create();
+
+    Configuration configuration = new Configuration();
+    configuration.setQuietMode(false);
+    System.out.println(configuration.get("fs.default.name"));
 
     try {
       Parser parser = new Parser();

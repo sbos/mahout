@@ -9,8 +9,10 @@ import org.apache.commons.cli2.builder.DefaultOptionBuilder;
 import org.apache.commons.cli2.builder.GroupBuilder;
 import org.apache.commons.cli2.commandline.Parser;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.MapFile;
 import org.apache.hadoop.io.SequenceFile;
@@ -22,7 +24,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.URI;
-import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -32,10 +33,6 @@ import java.util.Scanner;
  */
 public final class PrepareChunks {
   private final static Logger log = LoggerFactory.getLogger(PrepareChunks.class);
-
-  static {
-    URL.setURLStreamHandlerFactory(new FsUrlStreamHandlerFactory());
-  }
 
   public static void main(String[] args) throws IOException {
     DefaultOptionBuilder optionBuilder = new DefaultOptionBuilder();
@@ -63,16 +60,17 @@ public final class PrepareChunks {
       withOption(chunkSizeOption).withOption(inputOption).withOption(outputOption).
       withOption(unchunkOption).create();
 
+    Configuration configuration = new Configuration(false);
+      configuration.setQuietMode(false);
+      /*configuration.addResource(new Path("/opt/hadoop/conf/core-site.xml"));
+      configuration.addResource(new Path("/opt/hadoop/conf/hdfs-site.xml"));
+      configuration.addResource(new Path("/opt/hadoop/conf/mapred-site.xml"));*/
+      System.out.println(configuration.get("fs.default.name"));
+
     try {
       Parser parser = new Parser();
       parser.setGroup(group);
       CommandLine commandLine = parser.parse(args);
-
-      Configuration configuration = new Configuration(false);
-      configuration.setQuietMode(false);
-      configuration.addResource(new Path("/opt/hadoop/conf/core-site.xml"));
-      configuration.addResource(new Path("/opt/hadoop/conf/hdfs-site.xml"));
-      configuration.addResource(new Path("/opt/hadoop/conf/mapred-site.xml"));
 
       if (commandLine.hasOption(unchunkOption)) {
         String input = (String) commandLine.getValue(inputOption);
