@@ -26,7 +26,6 @@ import org.apache.mahout.math.DenseVector;
 import org.apache.mahout.math.Matrix;
 import org.apache.mahout.math.Vector;
 
-import java.io.InputStream;
 import java.util.Map;
 import java.util.Random;
 
@@ -50,7 +49,7 @@ public class HmmModel implements Cloneable {
   /**
    * Transition matrix containing the transition probabilities between hidden
    * states. TransitionMatrix(i,j) is the probability that we change from hidden
-   * state i to hidden state j In general: P(h(t+1)=h_j | h(t) = h_i) =
+   * state j to hidden state i In general: P(h(t+1)=h_j | h(t) = h_i) =
    * transitionMatrix(i,j) Since we have to make sure that each hidden state can
    * be "left", the following normalization condition has to hold:
    * sum(transitionMatrix(i,j),j=1..hiddenStates) = 1

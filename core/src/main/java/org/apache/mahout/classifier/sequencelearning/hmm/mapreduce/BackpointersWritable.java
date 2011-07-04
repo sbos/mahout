@@ -12,25 +12,13 @@ class BackpointersWritable implements Writable {
   int[][] backpointers;
 
   public BackpointersWritable() {
-    backpointers = new int[1][1];
-  }
-
-  public BackpointersWritable(int nOfObservations, int nOfHiddenStates) {
-    backpointers = new int[nOfObservations][nOfHiddenStates];
+    backpointers = null;
   }
 
   public BackpointersWritable(int[][] backpointers) {
     if (backpointers == null)
       throw new NullArgumentException("backpointers");
     this.backpointers = backpointers;
-  }
-
-  public int getNumberOfObservations() {
-    return backpointers.length;
-  }
-
-  public int getNumberOfHiddenStates() {
-    return backpointers[0].length;
   }
 
   @Override

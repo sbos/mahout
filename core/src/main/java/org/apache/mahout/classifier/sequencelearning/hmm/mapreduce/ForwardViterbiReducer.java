@@ -81,13 +81,13 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, Se
         throw new IOException("Unsupported Writable provided to the reducer");
     }
 
-    if (probabilities == null) {
-      log.debug("Seems like it's first chunk, so defining probabilities to null");
-      probabilities = new double[model.getNrOfHiddenStates()];
-    }
     if (observations == null) {
       log.debug("Seems like everything is processed already, skipping this sequence");
       return;
+    }
+    if (probabilities == null) {
+      log.debug("Seems like it's first chunk, so defining probabilities to initial");
+      probabilities = getInitialProbabilities(model, observations[0]);
     }
 
     log.info("Performing forward pass on " + key.getSequenceName() + "/" + key.getChunkNumber());
@@ -98,27 +98,72 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, Se
       new HiddenStateProbabilitiesWritable(probabilities)));
   }
 
+  private static double[] getInitialProbabilities(HmmModel model, int startObservation) {
+    double[] probs = new double[model.getNrOfHiddenStates()];
+    for (int h = 0; h < probs.length; ++h)
+      probs[h] = Math.log(model.getInitialProbabilities().getQuick(h) + Double.MIN_VALUE) +
+        Math.log(model.getEmissionMatrix().getQuick(h, startObservation));
+    return probs;
+  }
+
+  private static double getTransitionProbability(HmmModel model, int i, int j) {
+    return Math.log(model.getTransitionMatrix().getQuick(j, i) + Double.MIN_VALUE);
+  }
+
+  private static double getEmissionProbability(HmmModel model, int o, int h) {
+    return Math.log(model.getEmissionMatrix().get(h, o) + Double.MIN_VALUE);
+  }
+
   private static int[][] forward(int[] observations, HmmModel model, double[] probs) {
     double[] nextProbs = new double[model.getNrOfHiddenStates()];
-    int[][] backpoints = new int[observations.length][model.getNrOfHiddenStates()];
+    int[][] backpoints = new int[observations.length - 1][model.getNrOfHiddenStates()];
 
-    for (int i = 0; i < observations.length; ++i) {
+    for (int i = 1; i < observations.length; ++i) {
       for (int t = 0; t < model.getNrOfHiddenStates(); ++t) {
         int maxState = 0;
-        double maxProb = 0;
+        double maxProb = -Double.MAX_VALUE;
         for (int h = 0; h < model.getNrOfHiddenStates(); ++h) {
-          double currentProb = Math.log(model.getTransitionMatrix().get(t, h)) + probs[h];
+          double currentProb = getTransitionProbability(model, t, h) + probs[h];
           if (maxProb < currentProb) {
             maxState = h;
             maxProb = currentProb;
           }
         }
-        nextProbs[t] = maxProb + Math.log(model.getEmissionMatrix().get(t, observations[i]));
-        backpoints[i][t] = maxState;
+        nextProbs[t] = maxProb + getEmissionProbability(model, observations[i], t);
+        backpoints[i - 1][t] = maxState;
       }
-      probs = nextProbs;
+      for (int t = 0; t < probs.length; ++t)
+        probs[t] = nextProbs[t];
     }
 
+    /*int maxProb = 0;
+    for (int i = 1; i < probs.length; ++i)
+      if (probs[maxProb] < probs[i])
+        maxProb = i;
+
+    int[] path = new int[observations.length];
+    path[path.length - 1] = maxProb;
+
+    for (int i = path.length - 2; i >= 0; --i)
+      path[i] = backpoints[i][path[i+1]]; */
+
     return backpoints;
+  }
+
+  public static void main(String[] args) throws IOException {
+    String model = args[0];
+    Configuration configuration = new Configuration();
+    configuration.addResource(new Path("/opt/hadoop/conf", "core-site.xml"));
+    FileSystem fs = FileSystem.get(URI.create(model), configuration);
+    HmmModel hmmModel = LossyHmmSerializer.deserialize(fs.open(new Path(model)));
+    int[] observations  = new int[] {1, 1, 1, 0,0, 0, 0, 0, 0, 1, 1,
+      1, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+      3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2,
+      2, 2, 2, 2, 3, 3, 3, 3, 3,
+      2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3
+};
+    double[] probs = getInitialProbabilities(hmmModel, observations[0]);
+
+    int [][] backpointers = forward(observations, hmmModel, probs);
   }
 }

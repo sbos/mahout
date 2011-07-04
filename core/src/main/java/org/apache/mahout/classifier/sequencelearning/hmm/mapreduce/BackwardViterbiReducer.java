@@ -6,12 +6,16 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.MapFile;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.mahout.math.VarIntWritable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
 
 class BackwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, SequenceKey, ViterbiDataWritable> {
   private String path;
+
+  private static final Logger log = LoggerFactory.getLogger(BackwardViterbiReducer.class);
 
   @Override
   protected void setup(Reducer.Context context)
@@ -23,10 +27,11 @@ class BackwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, S
   @Override
   public void reduce(SequenceKey key, Iterable<ViterbiDataWritable> values,
                      Context context) throws IOException, InterruptedException {
+    log.info("Performing backward Viterbi pass on " + key.getSequenceName() + " / " + key.getChunkNumber());
     Configuration configuration = context.getConfiguration();
     String sequenceName = key.getSequenceName();
     FileSystem fs = FileSystem.get(URI.create(path), configuration);
-    MapFile.Writer sequenceWriter = new MapFile.Writer(configuration, fs, path + "/" + sequenceName,
+    MapFile.Writer mapWriter = new MapFile.Writer(configuration, fs, path + "/" + sequenceName,
       IntWritable.class, HiddenSequenceWritable.class);
 
     int[][] backpointers = null;
@@ -58,19 +63,16 @@ class BackwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, S
     if (lastState < 0)
       throw new IllegalStateException("Last state was not initialized");
 
-    int chunkLength = backpointers.length;
+    int chunkLength = backpointers.length + 1;
     VarIntWritable[] path = new VarIntWritable[chunkLength];
-    for (int i = 0; i < path.length; ++i)
-      path[i] = new VarIntWritable();
-    path[chunkLength - 1].set(lastState);
-    for (int i = path.length-2; i >= 0; --i) {
-      path[i].set(backpointers[i][path[i+1].get()]);
+    path[chunkLength - 1] = new VarIntWritable(lastState);
+    for (int i = chunkLength-2; i >= 0; --i) {
+      path[i] = new VarIntWritable(backpointers[i][path[i+1].get()]);
     }
 
-    sequenceWriter.append(new IntWritable(key.getChunkNumber()), new HiddenSequenceWritable(path));
-    sequenceWriter.close();
+    mapWriter.append(new IntWritable(-key.getChunkNumber()), new HiddenSequenceWritable(path));
+    mapWriter.close();
 
-    context.write(new SequenceKey(sequenceName, key.getChunkNumber() - 1),
-      new ViterbiDataWritable(path[0].get()));
+    context.write(key.previous(), new ViterbiDataWritable(path[0].get()));
   }
 }

@@ -32,8 +32,8 @@ class HiddenStateProbabilitiesWritable extends ArrayWritable {
   public int getMostProbableState() {
     Writable[] data = get();
     int maxState = 0;
-    for (int i = 0; i < data.length; ++i) {
-      if (((DoubleWritable)data[i]).get() < ((DoubleWritable)data[maxState]).get())
+    for (int i = 1; i < data.length; ++i) {
+      if (((DoubleWritable)data[i]).get() > ((DoubleWritable)data[maxState]).get())
         maxState = i;
     }
     return maxState;
