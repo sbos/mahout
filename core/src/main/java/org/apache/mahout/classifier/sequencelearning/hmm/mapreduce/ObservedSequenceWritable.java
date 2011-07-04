@@ -1,6 +1,7 @@
 package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import org.apache.commons.lang.NullArgumentException;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.mahout.math.VarIntWritable;
 
@@ -15,28 +16,32 @@ import java.util.Arrays;
 public class ObservedSequenceWritable implements WritableComparable<ObservedSequenceWritable>, Cloneable {
   private int[] data;
   private int length = 0;
+  private int chunkNumber = -1;
 
   public ObservedSequenceWritable() {
     length = 0;
     data = null;
   }
 
-  public ObservedSequenceWritable(int length) {
+  public ObservedSequenceWritable(int length, int chunkNumber) {
     setLength(length);
+    setChunkNumber(chunkNumber);
   }
 
-  public ObservedSequenceWritable(int[] data) {
+  public ObservedSequenceWritable(int[] data, int chunkNumber) {
     setData(data);
+    setChunkNumber(chunkNumber);
   }
 
-  public ObservedSequenceWritable(int[] data, int length) {
+  public ObservedSequenceWritable(int[] data, int length, int chunkNumber) {
     this.data = data;
     this.length = length;
+    setChunkNumber(chunkNumber);
   }
 
   @Override
   public ObservedSequenceWritable clone() {
-    return new ObservedSequenceWritable(data);
+    return new ObservedSequenceWritable(data, chunkNumber);
   }
 
   public void assign(int value) {
@@ -68,6 +73,16 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
     System.arraycopy(data, 0, newData, 0, Math.min(length, data.length));
   }
 
+  public int getChunkNumber() {
+    return chunkNumber;
+  }
+
+  public void setChunkNumber(int value) {
+    if (value < 0)
+      throw new IllegalArgumentException("value");
+    chunkNumber = value;
+  }
+
   @Override
   public void write(DataOutput dataOutput) throws IOException {
     VarIntWritable value = new VarIntWritable(getLength());
@@ -76,6 +91,8 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
       value.set(data[i]);
       value.write(dataOutput);
     }
+    IntWritable number = new IntWritable(chunkNumber);
+    number.write(dataOutput);
   }
 
   @Override
@@ -88,6 +105,9 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
       value.readFields(dataInput);
       data[i] = value.get();
     }
+    IntWritable number = new IntWritable();
+    number.readFields(dataInput);
+    setChunkNumber(number.get());
   }
 
   @Override
@@ -95,6 +115,9 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
     int lengthDifference = getLength() - observedSequenceWritable.getLength();
     if (lengthDifference != 0)
       return lengthDifference;
+    int chunkDifference = chunkNumber - observedSequenceWritable.chunkNumber;
+    if (chunkDifference != 0)
+      return chunkDifference;
     int[] otherData = observedSequenceWritable.getData();
     for (int i = 0; i < getLength(); ++i) {
       int difference = data[i] - otherData[i];
@@ -113,7 +136,7 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
   public int hashCode() {
     int hash = ((Integer)getLength()).hashCode();
     for (int i = 0; i < data.length; ++i)
-      hash += i * ((Integer)data[i]).hashCode();
-    return hash;
+      hash += (i+1) * ((Integer)data[i]).hashCode();
+    return hash + Integer.valueOf(chunkNumber).hashCode();
   }
 }

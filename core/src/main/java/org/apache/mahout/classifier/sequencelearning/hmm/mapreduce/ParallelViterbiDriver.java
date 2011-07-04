@@ -13,6 +13,7 @@ import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
@@ -103,10 +104,10 @@ public class ParallelViterbiDriver {
       job.setMapperClass(Mapper.class);
       job.setReducerClass(BackwardViterbiReducer.class);
       job.setInputFormatClass(SequenceFileInputFormat.class);
-      job.setOutputKeyClass(SequenceKey.class);
+      job.setOutputKeyClass(Text.class);
       job.setOutputValueClass(ViterbiDataWritable.class);
       job.setOutputFormatClass(SequenceFileOutputFormat.class);
-      job.setMapOutputKeyClass(SequenceKey.class);
+      job.setMapOutputKeyClass(Text.class);
       job.setMapOutputValueClass(ViterbiDataWritable.class);
 
       SequenceFileOutputFormat.setCompressOutput(job, true);
@@ -152,10 +153,10 @@ public class ParallelViterbiDriver {
       job.setMapperClass(Mapper.class);
       job.setReducerClass(ForwardViterbiReducer.class);
       job.setInputFormatClass(SequenceFileInputFormat.class);
-      job.setMapOutputKeyClass(SequenceKey.class);
+      job.setMapOutputKeyClass(Text.class);
       job.setMapOutputValueClass(ViterbiDataWritable.class);
       job.setOutputFormatClass(SequenceFileOutputFormat.class);
-      job.setOutputKeyClass(SequenceKey.class);
+      job.setOutputKeyClass(Text.class);
       job.setOutputValueClass(ViterbiDataWritable.class);
 
       SequenceFileOutputFormat.setCompressOutput(job, true);

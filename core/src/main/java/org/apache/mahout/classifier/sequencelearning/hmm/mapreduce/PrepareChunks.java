@@ -13,10 +13,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.MapFile;
-import org.apache.hadoop.io.SequenceFile;
-import org.apache.hadoop.io.Writable;
+import org.apache.hadoop.io.*;
 import org.apache.mahout.common.CommandLineUtil;
 import org.apache.mahout.math.VarIntWritable;
 import org.slf4j.Logger;
@@ -162,15 +159,15 @@ public final class PrepareChunks {
             log.debug("Opening new sequence file for chunk #" + currentChunk);
             SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
               new Path(outputPath, ((Integer)currentChunk).toString()),
-              SequenceKey.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
+              Text.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
             outputs.add(writer);
           }
 
           ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
-            observationsRead);
+            observationsRead, currentChunk);
 
           log.info(observationsRead + " observations to write to this chunk");
-          outputs.get(currentChunk).append(new SequenceKey(inputPath.getName(), currentChunk),
+          outputs.get(currentChunk).append(new Text(inputPath.getName()),
             ViterbiDataWritable.fromObservedSequence(chunk));
         }
 

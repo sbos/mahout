@@ -5,6 +5,7 @@ import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.mahout.classifier.sequencelearning.hmm.HmmModel;
@@ -18,7 +19,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Iterator;
 
-class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, SequenceKey, ViterbiDataWritable> {
+class ForwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, ViterbiDataWritable> {
   private SequenceFile.Writer backpointersWriter;
   private HmmModel model;
 
@@ -33,7 +34,7 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, Se
       context.getConfiguration());
     backpointersWriter = SequenceFile.createWriter(intermediateFileSystem,
       context.getConfiguration(), new Path(backpointersPath, context.getJobID().toString()),
-      SequenceKey.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
+      Text.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
 
     String hmmModelFileName = configuration.get("hmm.model");
     log.info("Trying to load model with name " + hmmModelFileName);
@@ -58,12 +59,14 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, Se
     backpointersWriter.close();
   }
 
-  public void reduce(SequenceKey key, Iterable<ViterbiDataWritable> values,
+  @Override
+  public void reduce(Text key, Iterable<ViterbiDataWritable> values,
                      Context context) throws IOException, InterruptedException {
     log.debug("Reducing data for " + key.toString());
     Iterator<ViterbiDataWritable> iterator = values.iterator();
     double[] probabilities = null;
     int[] observations = null;
+    int chunkNumber = -1;
     HiddenStateProbabilitiesWritable lastProbabilities;
     while (iterator.hasNext()) {
       ViterbiDataWritable data = iterator.next();
@@ -75,6 +78,7 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, Se
       }
       else if (value instanceof ObservedSequenceWritable) {
         observations = ((ObservedSequenceWritable) value).getData();
+        chunkNumber = ((ObservedSequenceWritable) value).getChunkNumber();
         log.debug("Successfully read observations from the current step");
       }
       else
@@ -86,13 +90,18 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, Se
       return;
     }
     if (probabilities == null) {
+      if (chunkNumber != 0)
+        throw new IllegalStateException("No hidden state probabilities were provided, but chunk number is not 0");
       log.debug("Seems like it's first chunk, so defining probabilities to initial");
       probabilities = getInitialProbabilities(model, observations[0]);
     }
 
-    log.info("Performing forward pass on " + key.getSequenceName() + "/" + key.getChunkNumber());
+    if (chunkNumber < 0)
+      throw new IllegalStateException("Chunk number was not initialized");
+
+    log.info("Performing forward pass on " + key + "/" + chunkNumber);
     BackpointersWritable backpointers = new BackpointersWritable(
-      forward(observations, model, probabilities));
+      forward(observations, model, probabilities), chunkNumber);
     backpointersWriter.append(key, new ViterbiDataWritable(backpointers));
     context.write(key, ViterbiDataWritable.fromInitialProbabilities(
       new HiddenStateProbabilitiesWritable(probabilities)));
@@ -135,17 +144,6 @@ class ForwardViterbiReducer extends Reducer<SequenceKey, ViterbiDataWritable, Se
       for (int t = 0; t < probs.length; ++t)
         probs[t] = nextProbs[t];
     }
-
-    /*int maxProb = 0;
-    for (int i = 1; i < probs.length; ++i)
-      if (probs[maxProb] < probs[i])
-        maxProb = i;
-
-    int[] path = new int[observations.length];
-    path[path.length - 1] = maxProb;
-
-    for (int i = path.length - 2; i >= 0; --i)
-      path[i] = backpoints[i][path[i+1]]; */
 
     return backpoints;
   }

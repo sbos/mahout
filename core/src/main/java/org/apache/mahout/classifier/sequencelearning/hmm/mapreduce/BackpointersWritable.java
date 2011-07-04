@@ -1,6 +1,7 @@
 package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import org.apache.commons.lang.NullArgumentException;
+import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.mahout.math.VarIntWritable;
 
@@ -10,15 +11,27 @@ import java.io.IOException;
 
 class BackpointersWritable implements Writable {
   int[][] backpointers;
+  int chunkNumber = -1;
 
   public BackpointersWritable() {
     backpointers = null;
   }
 
-  public BackpointersWritable(int[][] backpointers) {
+  public BackpointersWritable(int[][] backpointers, int chunkNumber) {
     if (backpointers == null)
       throw new NullArgumentException("backpointers");
     this.backpointers = backpointers;
+    setChunkNumber(chunkNumber);
+  }
+
+  public void setChunkNumber(int value) {
+    if (value < 0)
+      throw new IllegalArgumentException("value < 0");
+    chunkNumber = value;
+  }
+
+  public int getChunkNumber() {
+    return chunkNumber;
   }
 
   @Override
@@ -33,6 +46,8 @@ class BackpointersWritable implements Writable {
         value.write(dataOutput);
       }
     }
+    IntWritable chunk = new IntWritable(getChunkNumber());
+    chunk.write(dataOutput);
   }
 
   @Override
@@ -49,5 +64,8 @@ class BackpointersWritable implements Writable {
         backpointers[i][j] = value.get();
       }
     }
+    IntWritable chunk = new IntWritable();
+    chunk.readFields(dataInput);
+    setChunkNumber(chunk.get());
   }
 }
