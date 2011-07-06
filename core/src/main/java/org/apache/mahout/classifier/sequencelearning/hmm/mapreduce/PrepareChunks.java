@@ -1,3 +1,20 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import org.apache.commons.cli2.CommandLine;
@@ -26,7 +43,7 @@ import java.util.List;
 import java.util.Scanner;
 
 /**
- * A tool for dividing input sequences to chunks
+ * A tool for dividing input sequences to chunks and merging them
  */
 public final class PrepareChunks {
   private final static Logger log = LoggerFactory.getLogger(PrepareChunks.class);
@@ -71,31 +88,34 @@ public final class PrepareChunks {
         FileSystem inputFs = FileSystem.get(URI.create(input), configuration);
         FileSystem outputFs = FileSystem.get(URI.create(output), configuration);
 
-        MapFile.Reader reader = new MapFile.Reader(inputFs, input, configuration);
         OutputStream outputStream = outputFs.create(new Path(output));
         PrintWriter writer = new PrintWriter(outputStream);
 
-        IntWritable chunkNumber = new IntWritable(0);
+        int chunkNumber = 0;
         HiddenSequenceWritable chunk = new HiddenSequenceWritable();
 
         while (true) {
-          chunk = (HiddenSequenceWritable)reader.get(chunkNumber, chunk);
-          if (chunk == null)
+          Path chunkPath = new Path(input, String.valueOf(chunkNumber));
+          if (!inputFs.exists(chunkPath))
             break;
-          log.info("Reading " + input + ", chunk number " + chunkNumber.get());
+
+          log.info("Reading " + input + ", chunk number " + chunkNumber);
+          FSDataInputStream inputStream = inputFs.open(chunkPath);
+          chunk.readFields(inputStream);
 
           for (Writable element: chunk.get()) {
             VarIntWritable state = (VarIntWritable)element;
             writer.print(state.get());
             writer.print(' ');
           }
-          chunkNumber.set(chunkNumber.get() - 1);
+
+          ++chunkNumber;
+          inputStream.close();
         }
 
         writer.close();
         outputStream.close();
 
-        reader.close();
       } else {
         int chunkSize = Integer.parseInt((String) commandLine.getValue(chunkSizeOption));
         List<String> inputs = commandLine.getValues(inputOption);
@@ -141,12 +161,10 @@ public final class PrepareChunks {
       log.info("Splitting " + inputPath.getName() + " to chunks with size " + chunkSize);
       FSDataInputStream in =  fs.open(inputPath);
       String inputName = inputPath.getName();
-      //TODO: add different formatters
       BufferedReader reader = new BufferedReader(new InputStreamReader(in));
       Scanner scanner = new Scanner(reader);
 
       for (int currentChunk = 0; ; ++currentChunk) {
-        log.info("Splitting " + inputName + ", chunk #" + currentChunk);
         int[] chunkObservations = new int[chunkSize];
         int observationsRead;
         for (observationsRead = 0;
@@ -162,6 +180,7 @@ public final class PrepareChunks {
               Text.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
             outputs.add(writer);
           }
+          log.info("Splitting " + inputName + ", chunk #" + currentChunk);
 
           ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
             observationsRead, currentChunk);

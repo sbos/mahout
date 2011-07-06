@@ -1,9 +1,26 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.MapFile;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.mahout.math.VarIntWritable;
@@ -13,6 +30,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URI;
 
+/**
+ * Takes as the input {@link VarIntWritable} (last decoded hidden state from the previous step) and
+ * {@link BackpointersWritable}, and produces as the output {@link VarIntWritable} (last decoded hidden state
+ * for the next step). Also it writes decoded {@link HiddenSequenceWritable} in the background
+ */
 class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, ViterbiDataWritable> {
   private String path;
 
@@ -29,9 +51,6 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
   public void reduce(Text key, Iterable<ViterbiDataWritable> values,
                      Context context) throws IOException, InterruptedException {
     Configuration configuration = context.getConfiguration();
-    FileSystem fs = FileSystem.get(URI.create(path), configuration);
-    MapFile.Writer mapWriter = new MapFile.Writer(configuration, fs, path + "/" + key,
-      IntWritable.class, HiddenSequenceWritable.class);
 
     int[][] backpointers = null;
     int lastState = -1;
@@ -77,8 +96,11 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
       path[i] = new VarIntWritable(backpointers[i][path[i+1].get()]);
     }
 
-    mapWriter.append(new IntWritable(-chunkNumber), new HiddenSequenceWritable(path));
-    mapWriter.close();
+    FileSystem fs = FileSystem.get(URI.create(this.path), configuration);
+    FSDataOutputStream outputStream = fs.create(new Path(this.path + "/" + key, String.valueOf(chunkNumber)));
+
+    new HiddenSequenceWritable(path).write(outputStream);
+    outputStream.close();
 
     context.write(key, new ViterbiDataWritable(path[0].get()));
     log.info("new last state: " + path[0].get());
