@@ -15,9 +15,19 @@
  * limitations under the License.
  */
 
-package org.apache.mahout.math;
+ package org.apache.mahout.classifier.naivebayes.training;
 
-/** Exception thrown when there is a cardinality mismatch in matrix operations */
-public class UnboundLabelException extends RuntimeException {
+import org.apache.mahout.math.Vector;
 
+public class StandardThetaTrainer extends AbstractThetaTrainer {
+
+  public StandardThetaTrainer(Vector weightsPerFeature, Vector weightsPerLabel, double alphaI) {
+    super(weightsPerFeature, weightsPerLabel, alphaI);
+  }
+
+  @Override
+  public void train(int label, Vector instance) {
+    double weight = Math.log((instance.zSum() + alphaI()) / (labelWeight(label) + alphaI() * numFeatures()));
+    updatePerLabelThetaNormalizer(label, weight);
+  }
 }

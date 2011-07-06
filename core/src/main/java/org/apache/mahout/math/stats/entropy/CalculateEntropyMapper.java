@@ -15,24 +15,27 @@
  * limitations under the License.
  */
 
-package org.apache.mahout.classifier.naivebayes;
+package org.apache.mahout.math.stats.entropy;
+
+import org.apache.hadoop.io.DoubleWritable;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.mahout.math.VarIntWritable;
+
+import java.io.IOException;
 
 /**
- * Class containing Constants used by Naive Bayes classifier classes
- * 
+ * Calculates the entropy for the value with H(x) = x * log(x)
  */
-public final class BayesConstants {
-  
-  // Ensure all the strings are unique
-  //public static final String ALPHA_SMOOTHING_FACTOR = "__SF"; // -
-  
-  //public static final String WEIGHT = "__WT";
-  
-  public static final String FEATURE_SUM = "__SJ";
-  
-  public static final String LABEL_SUM = "__SK";
-  
-  public static final String LABEL_THETA_NORMALIZER = "_LTN";
-  
-  private BayesConstants() { }
+public final class CalculateEntropyMapper extends Mapper<Text, VarIntWritable, NullWritable, DoubleWritable> {
+
+  private final DoubleWritable result = new DoubleWritable();
+
+  @Override
+  protected void map(Text key, VarIntWritable value, Context context) throws IOException, InterruptedException {
+    result.set(value.get() * Math.log(value.get()));
+    context.write(NullWritable.get(), result);
+  }
+
 }

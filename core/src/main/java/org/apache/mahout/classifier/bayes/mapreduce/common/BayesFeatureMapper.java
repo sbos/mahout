@@ -30,7 +30,7 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
-import org.apache.lucene.analysis.tokenattributes.TermAttribute;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.mahout.classifier.bayes.BayesParameters;
 import org.apache.mahout.common.StringTuple;
 import org.apache.mahout.common.lucene.IteratorTokenStream;
@@ -47,7 +47,7 @@ public class BayesFeatureMapper extends MapReduceBase implements Mapper<Text,Tex
   private static final Logger log = LoggerFactory.getLogger(BayesFeatureMapper.class);
   
   private static final DoubleWritable ONE = new DoubleWritable(1.0);
-  private static final Pattern SPACE_PATTERN = Pattern.compile("[ ]+");
+  private static final Pattern SPACE_TAB = Pattern.compile("[ \t]+");
 
   private int gramSize = 1;
 
@@ -73,13 +73,13 @@ public class BayesFeatureMapper extends MapReduceBase implements Mapper<Text,Tex
                   final OutputCollector<StringTuple,DoubleWritable> output,
                   Reporter reporter) throws IOException {
     final String label = key.toString();
-    String[] tokens = SPACE_PATTERN.split(value.toString());
+    String[] tokens = SPACE_TAB.split(value.toString());
     OpenObjectIntHashMap<String> wordList = new OpenObjectIntHashMap<String>(tokens.length * gramSize);
     
     if (gramSize > 1) {
       ShingleFilter sf = new ShingleFilter(new IteratorTokenStream(Iterators.forArray(tokens)), gramSize);
       do {
-        String term = sf.getAttribute(TermAttribute.class).term();
+        String term = sf.getAttribute(CharTermAttribute.class).toString();
         if (term.length() > 0) {
           if (wordList.containsKey(term)) {
             wordList.put(term, 1 + wordList.get(term));
