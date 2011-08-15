@@ -1,5 +1,6 @@
 package org.apache.mahout.classifier.sequencelearning.hmm;
 
+import com.google.common.base.Function;
 import org.apache.mahout.math.DenseVector;
 
 import java.io.IOException;
@@ -9,6 +10,119 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class HmmOnlineViterbi {
+  private HmmModel model;
+  private double[] probs;
+  private Node[] leaves;
+  private Node root;
+  private Tree tree;
+  private LinkedList<int[]> backpointers;
+  private int i;
+  private Function<int[], Void> output;
+
+  public HmmOnlineViterbi(HmmModel model) {
+    this.model = model;
+    probs = null;
+    tree = new Tree();
+    leaves = new Node[model.getNrOfHiddenStates()];
+    root = null;
+    for (int i = 0; i < model.getNrOfHiddenStates(); ++i) {
+      Node node = new Node();
+      node.position = 0;
+      node.state = i;
+      tree.addLast(node);
+      leaves[i] = node;
+    }
+
+    backpointers = new LinkedList<int[]>();
+    i = 0;
+  }
+
+  public HmmOnlineViterbi(HmmModel model, Function<int[], Void> output) {
+    this(model);
+    setOutput(output);
+  }
+
+  public void setOutput(Function<int[], Void> output) {
+    this.output = output;
+  }
+
+  public void process(Iterable<Integer> observations) {
+    Iterator<Integer> iterator = observations.iterator();
+
+    if (probs == null) {
+      probs = getInitialProbabilities(model, iterator.next());
+      i = 1;
+    }
+
+    while (iterator.hasNext()) {
+      int observation = iterator.next();
+      double[] newProbs = new double[model.getNrOfHiddenStates()];
+      int[] optimalStates = new int[model.getNrOfHiddenStates()];
+      Node[] newLeaves = new Node[model.getNrOfHiddenStates()];
+      for (int k = 0; k < model.getNrOfHiddenStates(); ++k) {
+        int maxState = -1;
+        double maxProb = -Double.MAX_VALUE;
+        for (int t = 0; t < model.getNrOfHiddenStates(); ++t) {
+          double currentProb = getTransitionProbability(model, k, t) + probs[t];
+          if (maxProb < currentProb) {
+            maxProb = currentProb;
+            maxState = t;
+          }
+        }
+        optimalStates[k] = maxState;
+        newProbs[k] = maxProb + getEmissionProbability(model, observation, k);
+
+        Node node = new Node();
+        node.position = i;
+        node.state = k;
+        node.setParent(leaves[maxState]);
+        newLeaves[k] = node;
+        //tree.addLast(node);
+      }
+      backpointers.add(optimalStates);
+
+      tree.compress();
+      Node newRoot = tree.getRoot();
+      if (root != newRoot && newRoot != null) {
+        traceback(i - newRoot.position - 1, newRoot.state, false);
+        leaves = newLeaves;
+        root = newRoot;
+      }
+
+      for (Node leave: newLeaves)
+        tree.addLast(leave);
+      probs = newProbs;
+      ++i;
+    }
+  }
+
+  public void finish() {
+    int maxState = 0;
+    for (int k = 1; k < model.getNrOfHiddenStates(); ++k) {
+      if (probs[k] > probs[maxState])
+        maxState = k;
+    }
+
+    if (backpointers.size() > 0) {
+      traceback(backpointers.size(), maxState, true);
+    }
+  }
+
+  private void traceback(int i, int state, boolean last) {
+    int[] result = new int[i+1];
+    result[i] = state;
+    if (!last) backpointers.remove(i);
+    --i;
+    while (i >= 0) {
+      int[] optimalStates = backpointers.get(i);
+      backpointers.remove(i);
+      result[i] = optimalStates[result[i+1]];
+      --i;
+    }
+
+    output.apply(result);
+  }
+
   static class Node {
     public int position, state;
     public Node parent;
@@ -87,20 +201,6 @@ public class HmmOnlineViterbi {
     }
   }
 
-  static void traceback(LinkedList<int[]> backpointers, int i, int state, boolean last) {
-    int[] result = new int[i+1];
-    result[i] = state;
-    if (!last) backpointers.remove(i);
-    --i;
-    while (i >= 0) {
-      int[] optimalStates = backpointers.get(i);
-      backpointers.remove(i);
-      result[i] = optimalStates[result[i+1]];
-      --i;
-    }
-    for (int aResult : result) System.out.print(aResult + " ");
-  }
-
   private static double getTransitionProbability(HmmModel model, int i, int j) {
     return Math.log(model.getTransitionMatrix().getQuick(j, i) + Double.MIN_VALUE);
   }
@@ -115,76 +215,6 @@ public class HmmOnlineViterbi {
       probs[h] = Math.log(model.getInitialProbabilities().getQuick(h) + Double.MIN_VALUE) +
         Math.log(model.getEmissionMatrix().getQuick(h, startObservation));
     return probs;
-  }
-
-  public static Iterable<Integer> onlineViterbi(HmmModel model, Iterable<Integer> observations) {
-    Iterator<Integer> iterator = observations.iterator();
-
-    double[] probs = getInitialProbabilities(model, iterator.next());
-    Tree tree = new Tree();
-    Node[] leaves = new Node[model.getNrOfHiddenStates()];
-    Node root = null;
-    for (int i = 0; i < model.getNrOfHiddenStates(); ++i) {
-      Node node = new Node();
-      node.position = 0;
-      node.state = i;
-      tree.addLast(node);
-      leaves[i] = node;
-    }
-
-    LinkedList<int[]> backpointers = new LinkedList<int[]>();
-    int i = 1;
-    while (iterator.hasNext()) {
-      int observation = iterator.next();
-      double[] newProbs = new double[model.getNrOfHiddenStates()];
-      int[] optimalStates = new int[model.getNrOfHiddenStates()];
-      Node[] newLeaves = new Node[model.getNrOfHiddenStates()];
-      for (int k = 0; k < model.getNrOfHiddenStates(); ++k) {
-        int maxState = -1;
-        double maxProb = -Double.MAX_VALUE;
-        for (int t = 0; t < model.getNrOfHiddenStates(); ++t) {
-          double currentProb = getTransitionProbability(model, k, t) + probs[t];
-          if (maxProb < currentProb) {
-            maxProb = currentProb;
-            maxState = t;
-          }
-        }
-        optimalStates[k] = maxState;
-        newProbs[k] = maxProb + getEmissionProbability(model, observation, k);
-
-        Node node = new Node();
-        node.position = i;
-        node.state = k;
-        node.setParent(leaves[maxState]);
-        newLeaves[k] = node;
-        //tree.addLast(node);
-      }
-      backpointers.add(optimalStates);
-
-      tree.compress();
-      Node newRoot = tree.getRoot();
-      if (root != newRoot && newRoot != null) {
-        traceback(backpointers, i - newRoot.position - 1, newRoot.state, false);
-        leaves = newLeaves;
-        root = newRoot;
-      }
-
-      for (Node leave: newLeaves)
-        tree.addLast(leave);
-      probs = newProbs;
-      ++i;
-    }
-
-    int maxState = 0;
-    for (int k = 1; k < model.getNrOfHiddenStates(); ++k) {
-      if (probs[k] > probs[maxState])
-        maxState = k;
-    }
-
-    if (backpointers.size() > 0) {
-      traceback(backpointers, backpointers.size(), maxState, true);
-    }
-    return null;
   }
 
   private static HmmModel createBad() {
@@ -252,7 +282,16 @@ public class HmmOnlineViterbi {
     List<Integer> shit = new ArrayList<Integer>();
     for (int x: data)
       shit.add(x);
-    HmmOnlineViterbi.onlineViterbi(model,
-      shit);
+
+    HmmOnlineViterbi onlineViterbi = new HmmOnlineViterbi(model, new Function<int[], Void>() {
+      @Override
+      public Void apply(int[] input) {
+        for (int x: input) System.out.print(x + " ");
+        return null;
+      }
+    });
+
+    onlineViterbi.process(shit);
+    onlineViterbi.finish();
   }
 }
