@@ -220,7 +220,7 @@ public final class HmmAlgorithms {
    *                     effort but is numerically more stable for large observation
    *                     sequences
    */
-  static void viterbiAlgorithm(int[] sequence, double[][] delta, int[][] phi, HmmModel model, int[] observations,
+  public static void viterbiAlgorithm(int[] sequence, double[][] delta, int[][] phi, HmmModel model, int[] observations,
       boolean scaled) {
     // fetch references to the model parameters
     Vector ip = model.getInitialProbabilities();
@@ -302,11 +302,4 @@ public final class HmmAlgorithms {
       sequence[t] = phi[t][sequence[t + 1]];
     }
   }
-
-  public static Iterable<Integer> onlineViterbiAlgorithm(HmmModel model, int[] observations) {
-
-
-    return null;
-  }
-
 }
