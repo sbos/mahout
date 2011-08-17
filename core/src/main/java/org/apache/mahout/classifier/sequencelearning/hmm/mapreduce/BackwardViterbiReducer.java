@@ -40,6 +40,16 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
 
   private static final Logger log = LoggerFactory.getLogger(BackwardViterbiReducer.class);
 
+  public static interface ResultHandler {
+    public void handle(VarIntWritable[] decoded) throws IOException, InterruptedException;
+  }
+
+  private ResultHandler resultHandler;
+
+  public void setResultHandler(ResultHandler handler) {
+    resultHandler = handler;
+  }
+
   @Override
   protected void setup(Reducer.Context context)
               throws IOException,
@@ -48,9 +58,9 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
   }
 
   @Override
-  public void reduce(Text key, Iterable<ViterbiDataWritable> values,
-                     Context context) throws IOException, InterruptedException {
-    Configuration configuration = context.getConfiguration();
+  public void reduce(final Text key, Iterable<ViterbiDataWritable> values,
+                     final Context context) throws IOException, InterruptedException {
+    final Configuration configuration = context.getConfiguration();
 
     int[][] backpointers = null;
     int lastState = -1;
@@ -90,19 +100,30 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
 
     log.info("last state: " + lastState);
     int chunkLength = backpointers.length + 1;
-    VarIntWritable[] path = new VarIntWritable[chunkLength];
+    final VarIntWritable[] path = new VarIntWritable[chunkLength];
     path[chunkLength - 1] = new VarIntWritable(lastState);
     for (int i = chunkLength-2; i >= 0; --i) {
       path[i] = new VarIntWritable(backpointers[i][path[i+1].get()]);
     }
 
-    FileSystem fs = FileSystem.get(URI.create(this.path), configuration);
-    FSDataOutputStream outputStream = fs.create(new Path(this.path + "/" + key, String.valueOf(chunkNumber)));
+    final String outputPath = this.path;
+    final int chunk = chunkNumber;
+    if (resultHandler == null) {
+      resultHandler = new ResultHandler() {
+        @Override
+        public void handle(VarIntWritable[] decoded) throws IOException, InterruptedException {
+          if (outputPath != null) {
+            FileSystem fs = FileSystem.get(URI.create(outputPath), configuration);
+            FSDataOutputStream outputStream = fs.create(new Path(outputPath + "/" + key, String.valueOf(chunk)));
 
-    new HiddenSequenceWritable(path).write(outputStream);
-    outputStream.close();
+            new HiddenSequenceWritable(path).write(outputStream);
+            outputStream.close();
+          }
 
-    context.write(key, new ViterbiDataWritable(path[0].get()));
-    log.info("new last state: " + path[0].get());
+          context.write(key, new ViterbiDataWritable(path[0].get()));
+          log.info("new last state: " + path[0].get());
+        }
+      };
+    }
   }
 }

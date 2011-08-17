@@ -24,6 +24,7 @@ import org.apache.mahout.classifier.sequencelearning.hmm.HmmEvaluator;
 import org.apache.mahout.classifier.sequencelearning.hmm.HmmModel;
 import org.apache.mahout.common.MahoutTestCase;
 import org.apache.mahout.math.DenseVector;
+import org.apache.mahout.math.VarIntWritable;
 import org.easymock.EasyMock;
 import org.junit.Test;
 
@@ -31,7 +32,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ForwardViterbiTest extends MahoutTestCase {
+/**
+ * This test checks that the result of {@link ForwardViterbiReducer} and {@link BackwardViterbiReducer} is
+ * identical to the sequential implementation of Viterbi algorithm in Mahout
+ */
+public class ViterbiReducersTest extends MahoutTestCase {
   private HmmModel model;
   private int[] observations;
   private int sequenceLength = 33;
@@ -62,7 +67,7 @@ public class ForwardViterbiTest extends MahoutTestCase {
 
   @Test
   public void test() throws IOException, InterruptedException {
-    Reducer.Context ctx = EasyMock.createMock(Reducer.Context.class);
+    Reducer.Context forwardCtx = EasyMock.createMock(Reducer.Context.class);
     ForwardViterbiReducer reducer = new ForwardViterbiReducer();
     reducer.setModel(model);
 
@@ -72,7 +77,7 @@ public class ForwardViterbiTest extends MahoutTestCase {
     reducer.setResultHandler(new ForwardViterbiReducer.ResultHandler() {
       @Override
       public void handle(String sequenceName, int[][] backpointers, int chunkNumber, double[] hiddenStateProbabilities) throws IOException, InterruptedException {
-        int[] decoded = new int[sequenceLength];
+        final int[] decoded = new int[sequenceLength];
         HmmAlgorithms.viterbiAlgorithm(decoded, delta, phi, model, observations, true);
 
         //testing last hidden state probabilities
@@ -81,8 +86,27 @@ public class ForwardViterbiTest extends MahoutTestCase {
         //testing backpointers arrays
         for (int i = 0; i < sequenceLength - 1; ++i)
           assertArrayEquals(phi[i], backpointers[i]);
+
+        //now testing backward reducer
+        Reducer.Context backwardCtx = EasyMock.createMock(Reducer.Context.class);
+        BackwardViterbiReducer backwardReducer = new BackwardViterbiReducer();
+
+        List<ViterbiDataWritable> reducerInput = new ArrayList<ViterbiDataWritable>();
+        reducerInput.add(ViterbiDataWritable.fromInitialProbabilities(new HiddenStateProbabilitiesWritable(hiddenStateProbabilities)));
+        reducerInput.add(new ViterbiDataWritable(new BackpointersWritable(backpointers, 0)));
+
+        backwardReducer.setResultHandler(new BackwardViterbiReducer.ResultHandler() {
+
+          @Override
+          public void handle(VarIntWritable[] reducerDecoded) throws IOException {
+            for (int i = 0; i < reducerDecoded.length; ++i) {
+              assertEquals(reducerDecoded[i].get(), decoded[i]);
+            }
+          }
+        });
+        backwardReducer.reduce(new Text("test"), reducerInput, backwardCtx);
       }
     });
-    reducer.reduce(new Text("test"), forwardInput, ctx);
+    reducer.reduce(new Text("test"), forwardInput, forwardCtx);
   }
 }
