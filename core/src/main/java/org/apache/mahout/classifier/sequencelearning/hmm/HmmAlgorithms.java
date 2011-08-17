@@ -303,4 +303,10 @@ public final class HmmAlgorithms {
     }
   }
 
+  public static Iterable<Integer> onlineViterbiAlgorithm(HmmModel model, int[] observations) {
+
+
+    return null;
+  }
+
 }

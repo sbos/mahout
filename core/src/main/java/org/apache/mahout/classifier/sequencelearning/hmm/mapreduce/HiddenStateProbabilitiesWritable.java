@@ -25,7 +25,7 @@ import org.apache.hadoop.io.Writable;
  * Probabilities of the assigning last observed state to corresponding hidden states.
  * {@link ArrayWritable} of {@link DoubleWritable}
  */
-class HiddenStateProbabilitiesWritable extends ArrayWritable {
+public class HiddenStateProbabilitiesWritable extends ArrayWritable {
   public HiddenStateProbabilitiesWritable() {
     super(DoubleWritable.class);
   }

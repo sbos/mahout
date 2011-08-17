@@ -1,3 +1,20 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.mahout.classifier.sequencelearning.hmm;
 
 import com.google.common.base.Function;
@@ -16,6 +33,13 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+/**
+ * Online Viterbi algorithm implementation which could decode hidden variable sequence from the given
+ * sequence of observed variables as soon as some part of input sequence could be decoded. In some cases
+ * this algorithm may perform at the constant space and asymptotically same time as the normal Viterbi
+ * Based on Rastislav Sramek's master thesis
+ * @see HmmEvaluator
+ */
 public class HmmOnlineViterbi implements Writable {
   private HmmModel model;
   private double[] probs;
@@ -27,11 +51,20 @@ public class HmmOnlineViterbi implements Writable {
   private double lastLikelihood;
   private Function<int[], Void> output;
 
+  /**
+   * Initializes state of the algorithm with the given Hidden Markov Model
+   * @param model
+   */
   public HmmOnlineViterbi(HmmModel model) {
     this.model = model;
     clear();
   }
 
+  /**
+   * Initializes state of the algorithm with the given Hidden Markov Model and decoded sequence handler
+   * @param model
+   * @param output a {@link Function} which would be called each time some part of
+   */
   public HmmOnlineViterbi(HmmModel model, Function<int[], Void> output) {
     this(model);
     setOutput(output);
@@ -45,10 +78,19 @@ public class HmmOnlineViterbi implements Writable {
     return model;
   }
 
+  /**
+   * @return log-likelihood at the end of last decoded hidden state
+   */
   public double getLastLogLikelihood() {
     return lastLikelihood;
   }
 
+  /**
+   * Decode a new chunk of observed variables.
+   * Note that for some models provided observations would be decoded instantly,
+   * for others they could be decoded only at the end of input. You may force decoding by calling {@link org.apache.mahout.classifier.sequencelearning.hmm.HmmOnlineViterbi#finish()}
+   * @param observations
+   */
   public void process(Iterable<Integer> observations) {
     Iterator<Integer> iterator = observations.iterator();
 
@@ -118,6 +160,11 @@ public class HmmOnlineViterbi implements Writable {
     lastLikelihood = -Double.MAX_VALUE;
   }
 
+  /**
+   * Forces the decoding of hidden variables using the last observed variable as the end of sequence.
+   * Also resets the algorithm state which could be used for decoding again after calling this method
+   * @return log-likelihood of last decoded hidden variable
+   */
   public double finish() {
     int maxState = 0;
     for (int k = 1; k < model.getNrOfHiddenStates(); ++k) {
@@ -146,7 +193,7 @@ public class HmmOnlineViterbi implements Writable {
       --i;
     }
 
-    output.apply(result);
+    if (output != null) output.apply(result);
   }
 
   @Override
@@ -269,7 +316,7 @@ public class HmmOnlineViterbi implements Writable {
   }
 
   static class Tree {
-    Node first;
+    Node first, last;
     int size;
 
     public Tree() {
@@ -279,6 +326,10 @@ public class HmmOnlineViterbi implements Writable {
 
     public void addLast(Node node) {
       if (first == null) first = node;
+      if (last != null) last.next = node;
+      node.next = null;
+      node.previous = last;
+      last = node;
       ++size;
     }
 
@@ -289,7 +340,9 @@ public class HmmOnlineViterbi implements Writable {
         node.next.previous = node.previous;
 
       if (first == node)
-        first = node.next;
+        first = first.next;
+      if (last == node)
+        last = last.previous;
 
       --size;
     }
@@ -336,83 +389,5 @@ public class HmmOnlineViterbi implements Writable {
       probs[h] = Math.log(model.getInitialProbabilities().getQuick(h) + Double.MIN_VALUE) +
         Math.log(model.getEmissionMatrix().getQuick(h, startObservation));
     return probs;
-  }
-
-  private static HmmModel createBad() {
-    HmmModel model = new HmmModel(4, 3);
-    double e = 0.3, f = 0.2;
-
-    model.setInitialProbabilities(new DenseVector(new double[] {0.25, 0.25, 0.25, 0.25}));
-
-    model.getEmissionMatrix().set(0, 0, e);
-    model.getEmissionMatrix().set(0, 1, 1.0-e);
-    model.getEmissionMatrix().set(0, 2, 0);
-
-    model.getEmissionMatrix().set(1, 0, 1.0-e);
-    model.getEmissionMatrix().set(1, 1, e);
-    model.getEmissionMatrix().set(1, 2, 0);
-
-    model.getEmissionMatrix().set(2, 0, e-f);
-    model.getEmissionMatrix().set(2, 1, 1.0-e-f);
-    model.getEmissionMatrix().set(2, 2, 2.0*f);
-
-    model.getEmissionMatrix().set(3, 0, 1.0-e-f);
-    model.getEmissionMatrix().set(3, 1, e-f);
-    model.getEmissionMatrix().set(3, 2, 2.0*f);
-
-    model.getTransitionMatrix().set(0, 0, 0.5);
-    model.getTransitionMatrix().set(0, 1, 0.5);
-    model.getTransitionMatrix().set(1, 0, 0.5);
-    model.getTransitionMatrix().set(1, 1, 0.5);
-
-    model.getTransitionMatrix().set(2, 3, 0.5);
-    model.getTransitionMatrix().set(3, 2, 0.5);
-    model.getTransitionMatrix().set(3, 3, 0.5);
-    model.getTransitionMatrix().set(2, 2, 0.5);
-
-    return model;
-  }
-
-  public static void main(String[] args) throws IOException {
-    HmmModel model = new HmmModel(2, 2);
-    double e = 0.01;
-    model.setInitialProbabilities(new DenseVector(new double[] {e, 1.0-e}));
-
-    model.getEmissionMatrix().set(0, 0, e);
-    model.getEmissionMatrix().set(0, 1, 1.0-e);
-    model.getEmissionMatrix().set(1, 0, 1.0-e);
-    model.getEmissionMatrix().set(1, 1, e);
-    model.getTransitionMatrix().set(0, 0, 0.5);
-    model.getTransitionMatrix().set(0, 1, 0.5);
-    model.getTransitionMatrix().set(1, 0, 0.5);
-    model.getTransitionMatrix().set(1, 1, 0.5);
-
-    //model = LossyHmmSerializer.deserialize(new DataInputStream(new FileInputStream("../hmm.model")));
-    model = createBad();
-
-    int[] data = HmmEvaluator.predict(model, 27);
-    System.out.print("Seq: ");
-    for (int x: data)
-      System.out.print(x + " ");
-    System.out.println();
-    //System.out.print("Std: ");
-    int[] dec = HmmAlgorithms.viterbiAlgorithm(model, data, true);
-    for (int x: dec)
-      System.out.print(x + " ");
-    System.out.println();
-    List<Integer> shit = new ArrayList<Integer>();
-    for (int x: data)
-      shit.add(x);
-
-    HmmOnlineViterbi onlineViterbi = new HmmOnlineViterbi(model, new Function<int[], Void>() {
-      @Override
-      public Void apply(int[] input) {
-        for (int x: input) System.out.print(x + " ");
-        return null;
-      }
-    });
-
-    onlineViterbi.process(shit);
-    onlineViterbi.finish();
   }
 }

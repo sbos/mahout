@@ -62,7 +62,7 @@ public final class PrepareChunks {
       withDescription("Convert chunked output to raw file").withShortName("u").create();
 
     Option inputOption = optionBuilder.withLongName("input").withRequired(true).
-      withDescription("directory contains observed sequences").withShortName("i").
+      withDescription("directory containing observed sequences").withShortName("i").
       withArgument(argumentBuilder.withMinimum(1).withName("path").create()).create();
 
     Option outputOption = optionBuilder.withLongName("output").withRequired(true).
