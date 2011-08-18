@@ -19,6 +19,7 @@ package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import org.apache.hadoop.io.GenericWritable;
 import org.apache.hadoop.io.Writable;
+import org.apache.mahout.classifier.sequencelearning.hmm.HmmOnlineViterbi;
 import org.apache.mahout.math.VarIntWritable;
 
 /**
@@ -30,7 +31,8 @@ class ViterbiDataWritable extends GenericWritable {
   static Class[] classes = new Class[] {
     ObservedSequenceWritable.class,
     HiddenStateProbabilitiesWritable.class,
-    VarIntWritable.class, BackpointersWritable.class
+    VarIntWritable.class, BackpointersWritable.class,
+    HmmOnlineViterbi.class
   };
 
   public ViterbiDataWritable() {
@@ -39,6 +41,10 @@ class ViterbiDataWritable extends GenericWritable {
 
   public ViterbiDataWritable(int value) {
     set(new VarIntWritable(value));
+  }
+
+  public ViterbiDataWritable(HmmOnlineViterbi onlineViterbi) {
+    set(onlineViterbi);
   }
 
   public ViterbiDataWritable(BackpointersWritable backpointers) {

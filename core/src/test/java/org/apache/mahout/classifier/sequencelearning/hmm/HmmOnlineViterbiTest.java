@@ -111,9 +111,23 @@ public class HmmOnlineViterbiTest extends MahoutTestCase {
     for (int x: badObservations)
       input.add(x);
 
-    HmmOnlineViterbi onlineViterbi = new HmmOnlineViterbi(badModel);
+    final List<Integer> decoded = new ArrayList<Integer>();
+    HmmOnlineViterbi onlineViterbi = new HmmOnlineViterbi(badModel, new Function<int[], Void>() {
+      @Override
+      public Void apply(int[] input) {
+        for (int i = 0; i < input.length; ++i)
+          decoded.add(input[i]);
+        return null;
+      }
+    });
     onlineViterbi.process(input);
+    double logLikelihood = onlineViterbi.finish();
 
-    assertTrue(Math.abs(Math.exp(onlineViterbi.finish()) - HmmEvaluator.modelLikelihood(badModel, badObservations, true)) < likelihoodEpsilon);
+    int[] offlineDecoded = HmmEvaluator.decode(badModel, observations, true);
+
+    assertEquals(offlineDecoded.length, decoded.size());
+
+    //assertArrayEquals(HmmEvaluator.decode(badModel, observations, true), decodedArray);
+    assertTrue(Math.abs(Math.exp(logLikelihood) - HmmEvaluator.modelLikelihood(badModel, badObservations, true)) < likelihoodEpsilon);
   }
 }

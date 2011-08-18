@@ -45,7 +45,9 @@ public class ViterbiReducersTest extends MahoutTestCase {
   private double[][] delta;
 
   @Override
-  public void setUp() {
+  public void setUp() throws Exception {
+    super.setUp();
+
     model = new HmmModel(2, 2);
     double e = 0.1;
     model.setInitialProbabilities(new DenseVector(new double[] {e, 1.0-e}));

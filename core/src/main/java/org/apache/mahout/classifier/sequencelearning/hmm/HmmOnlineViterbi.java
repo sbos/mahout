@@ -23,15 +23,12 @@ import com.google.common.collect.HashBiMap;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.mahout.classifier.sequencelearning.hmm.mapreduce.HiddenStateProbabilitiesWritable;
-import org.apache.mahout.math.DenseVector;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.List;
 
 /**
  * Online Viterbi algorithm implementation which could decode hidden variable sequence from the given
@@ -172,9 +169,7 @@ public class HmmOnlineViterbi implements Writable {
         maxState = k;
     }
 
-    if (backpointers.size() > 0) {
-      traceback(backpointers.size(), maxState, true);
-    }
+    traceback(backpointers.size(), maxState, true);
 
     double result = probs[maxState];
     clear();
@@ -196,6 +191,13 @@ public class HmmOnlineViterbi implements Writable {
     if (output != null) output.apply(result);
   }
 
+  static int mapNode(BiMap<Node, Integer> map, Node node) {
+    Integer index = map.get(node);
+    if (index == null)
+      index = map.put(node, map.size());
+    return index;
+  }
+
   @Override
   public void write(DataOutput output) throws IOException {
     HiddenStateProbabilitiesWritable probs = new HiddenStateProbabilitiesWritable(this.probs);
@@ -215,16 +217,24 @@ public class HmmOnlineViterbi implements Writable {
     //serializing compressed backpointers tree
     //3 * |H| - 2 is the upper bound of node number
     HashBiMap<Node, Integer> nodeMap = HashBiMap.create(3 * model.getNrOfHiddenStates() - 2);
-    root.write(nodeMap, output);
+    mapNode(nodeMap, root);
     for (Node leave: leaves)
-      leave.write(nodeMap, output);
+      mapNode(nodeMap, leave);
 
-    output.write(tree.size);
     Node node = tree.first;
     while (node != null) {
-      node.write(nodeMap, output);
+      mapNode(nodeMap, node);
       node = node.next;
     }
+
+    output.write(nodeMap.size());
+    for (Node entry: nodeMap.keySet())
+      entry.write(nodeMap, output);
+
+    root.write(nodeMap, output);
+    output.write(tree.size);
+    for (Node leave: leaves)
+      leave.write(nodeMap, output);
   }
 
   @Override
@@ -248,9 +258,12 @@ public class HmmOnlineViterbi implements Writable {
     doubleWritable.readFields(input);
     lastLikelihood = doubleWritable.get();
 
-    BiMap<Node, Integer> nodeMap = HashBiMap.create(3 * model.getNrOfHiddenStates() - 2);
-    root = Node.read(nodeMap, input);
+    int mapSize = input.readInt();
+    BiMap<Node, Integer> nodeMap = HashBiMap.create(mapSize);
+    for (int i = 0; i < mapSize; ++i)
+      Node.read(nodeMap, input);
 
+    root = Node.read(nodeMap, input);
     for (int i = 0; i < leaves.length; ++i)
       leaves[i] = Node.read(nodeMap, input);
 

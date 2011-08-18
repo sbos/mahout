@@ -17,6 +17,7 @@
 
 package org.apache.mahout.classifier.sequencelearning.hmm;
 
+import com.google.common.base.Function;
 import com.google.common.io.Closeables;
 import org.apache.commons.cli2.CommandLine;
 import org.apache.commons.cli2.Group;
@@ -64,8 +65,13 @@ public final class ViterbiEvaluator {
       withDescription("Compute likelihood of observed sequence").
       withShortName("l").withRequired(false).create();
 
+    Option onlineOption = optionBuilder.withLongName("online").
+      withDescription("Compute likelihood of observed sequence").
+      withShortName("ol").withRequired(false).create();
+
+
     Group optionGroup = new GroupBuilder().withOption(inputOption).
-      withOption(outputOption).withOption(modelOption).withOption(likelihoodOption).
+      withOption(outputOption).withOption(modelOption).withOption(likelihoodOption).withOption(onlineOption).
       withName("Options").create();
 
     try {
@@ -105,19 +111,37 @@ public final class ViterbiEvaluator {
         observationsArray[i] = observations.get(i);
       }
 
-      //decoding
-      int[] hiddenStates = HmmEvaluator.decode(model, observationsArray, true);
+      final PrintWriter writer = new PrintWriter(new FileOutputStream(output));
 
-      //writing output
-      PrintWriter writer = new PrintWriter(new FileOutputStream(output));
-      try {
+      if (commandLine.hasOption(onlineOption)) {
+        HmmOnlineViterbi onlineViterbi = new HmmOnlineViterbi(model, new Function<int[], Void>() {
+          @Override
+          public Void apply(int[] decoded) {
+            for (int hiddenState : decoded) {
+              writer.print(hiddenState);
+              writer.print(' ');
+            }
+
+            return null;
+          }
+        });
+
+        onlineViterbi.process(observations);
+        onlineViterbi.finish();
+      }
+      else {
+        //decoding
+        int[] hiddenStates = HmmEvaluator.decode(model, observationsArray, true);
+
+        //writing output
         for (int hiddenState : hiddenStates) {
           writer.print(hiddenState);
           writer.print(' ');
         }
-      } finally {
-        Closeables.closeQuietly(writer);
       }
+
+      writer.flush();
+      Closeables.closeQuietly(writer);
 
       if (computeLikelihood) {
         System.out.println("Likelihood: " + HmmEvaluator.modelLikelihood(model, observationsArray, true));
