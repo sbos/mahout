@@ -18,6 +18,7 @@
 package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import org.apache.commons.lang.NullArgumentException;
+import org.apache.hadoop.io.BooleanWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.WritableComparable;
 import org.apache.mahout.math.VarIntWritable;
@@ -34,23 +35,31 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
   private int[] data;
   private int length = 0;
   private int chunkNumber = -1;
+  private boolean lastChunk;
 
   public ObservedSequenceWritable() {
     length = 0;
     data = null;
   }
 
-  public ObservedSequenceWritable(int length, int chunkNumber) {
-    setLength(length);
-    setChunkNumber(chunkNumber);
+  private ObservedSequenceWritable(int chunkNumber, boolean isLast) {
+    this.chunkNumber = chunkNumber;
+    this.lastChunk = isLast;
   }
 
-  public ObservedSequenceWritable(int[] data, int chunkNumber) {
+  public ObservedSequenceWritable(int length, int chunkNumber, boolean isLast) {
+    this(chunkNumber, isLast);
+    setLength(length);
+  }
+
+  public ObservedSequenceWritable(int[] data, int chunkNumber, boolean isLast) {
+    this(chunkNumber, isLast);
     setData(data);
     setChunkNumber(chunkNumber);
   }
 
-  public ObservedSequenceWritable(int[] data, int length, int chunkNumber) {
+  public ObservedSequenceWritable(int[] data, int length, int chunkNumber, boolean isLast) {
+    this(chunkNumber, isLast);
     this.data = data;
     this.length = length;
     setChunkNumber(chunkNumber);
@@ -58,7 +67,7 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
 
   @Override
   public ObservedSequenceWritable clone() {
-    return new ObservedSequenceWritable(data, chunkNumber);
+    return new ObservedSequenceWritable(data, chunkNumber, lastChunk);
   }
 
   public void assign(int value) {
@@ -78,6 +87,10 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
 
   public int getLength() {
     return length;
+  }
+
+  public boolean isLastChunk() {
+    return lastChunk;
   }
 
   public void setLength(int length) {
@@ -110,6 +123,8 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
     }
     IntWritable number = new IntWritable(chunkNumber);
     number.write(dataOutput);
+    BooleanWritable last = new BooleanWritable(lastChunk);
+    last.write(dataOutput);
   }
 
   @Override
@@ -125,6 +140,9 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
     IntWritable number = new IntWritable();
     number.readFields(dataInput);
     setChunkNumber(number.get());
+    BooleanWritable last = new BooleanWritable();
+    last.readFields(dataInput);
+    lastChunk = last.get();
   }
 
   @Override
@@ -146,7 +164,7 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
 
   @Override
   public boolean equals(Object other) {
-    return (other instanceof ObservedSequenceWritable) ? (compareTo((ObservedSequenceWritable)other) == 0) : false;
+    return (other instanceof ObservedSequenceWritable) && (compareTo((ObservedSequenceWritable) other) == 0);
   }
 
   @Override

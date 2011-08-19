@@ -40,7 +40,11 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Iterator;
 
-public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, HmmOnlineViterbi> {
+/**
+ * Performs all work for decoding hidden states from given sequence of observed variables for HMM using
+ * {@link HmmOnlineViterbi} functionality
+ */
+public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, ViterbiDataWritable> {
   private String outputPath;
   private HmmModel model;
 
@@ -91,9 +95,7 @@ public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Tex
     }
 
     if (observations == null) {
-      log.info("No observations provided for " + key + ". Ending");
-      onlineViterbi.finish();
-      return;
+      throw new IllegalStateException("No observations was provided, but algorithm was not finished");
     }
 
     final int chunkNumber = observations.getChunkNumber();
@@ -123,6 +125,7 @@ public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Tex
         });
 
     final int[] data = observations.getData();
+    onlineViterbi.setModel(model);
     onlineViterbi.process(new Iterable<Integer>() {
       @Override
       public Iterator<Integer> iterator() {
@@ -130,7 +133,12 @@ public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Tex
       }
     });
 
-    context.write(key, onlineViterbi);
+    if (observations.isLastChunk()) {
+      log.info("Processing last chunk for " + key + ". Finishing at " + onlineViterbi.getPosition());
+      onlineViterbi.finish();
+    }
+    else
+      context.write(key, new ViterbiDataWritable(onlineViterbi));
     writer.close();
   }
 }

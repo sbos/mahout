@@ -37,7 +37,6 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
-import org.apache.mahout.classifier.sequencelearning.hmm.HmmOnlineViterbi;
 import org.apache.mahout.common.CommandLineUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -128,7 +127,7 @@ public class OnlineViterbiDriver {
       job.setMapOutputValueClass(ViterbiDataWritable.class);
       job.setOutputFormatClass(SequenceFileOutputFormat.class);
       job.setOutputKeyClass(Text.class);
-      job.setOutputValueClass(HmmOnlineViterbi.class);
+      job.setOutputValueClass(ViterbiDataWritable.class);
 
       SequenceFileOutputFormat.setCompressOutput(job, true);
       SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.RECORD);

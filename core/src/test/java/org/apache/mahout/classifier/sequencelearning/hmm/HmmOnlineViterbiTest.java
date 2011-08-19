@@ -22,6 +22,7 @@ import org.apache.mahout.common.MahoutTestCase;
 import org.apache.mahout.math.DenseVector;
 import org.junit.Test;
 
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,6 +30,8 @@ public class HmmOnlineViterbiTest extends MahoutTestCase {
   HmmModel model, badModel;
   int[] observations, badObservations;
   double likelihoodEpsilon = 0.0001;
+
+
 
   @Override
   public void setUp() throws Exception {
@@ -84,7 +87,7 @@ public class HmmOnlineViterbiTest extends MahoutTestCase {
   }
 
   @Test
-  public void testOnline() {
+  public void testOnline() throws IOException {
     HmmOnlineViterbi onlineViterbi = new HmmOnlineViterbi(model, new Function<int[], Void>() {
       @Override
       public Void apply(int[] input) {
@@ -105,6 +108,50 @@ public class HmmOnlineViterbiTest extends MahoutTestCase {
   }
 
   @Test
+  public void testSerialization() throws IOException {
+    List<Integer> input = new ArrayList<Integer>();
+    for (int x: observations)
+      input.add(x);
+
+    HmmOnlineViterbi onlineViterbi = new HmmOnlineViterbi(model);
+    onlineViterbi.process(input);
+
+    ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream();
+    DataOutputStream outputStream = new DataOutputStream(byteOutputStream);
+    onlineViterbi.write(outputStream);
+    outputStream.close();
+
+    byte[] buffer = byteOutputStream.toByteArray();
+
+    ByteArrayInputStream byteInputStream = new ByteArrayInputStream(buffer);
+    DataInputStream inputStream = new DataInputStream(byteInputStream);
+
+    HmmOnlineViterbi deserialized = new HmmOnlineViterbi();
+    deserialized.readFields(inputStream);
+
+    inputStream.close();
+    byteOutputStream.close();
+
+    assertEquals(onlineViterbi.getPosition(), deserialized.getPosition());
+    assertEquals(onlineViterbi.getLastLogLikelihood(), deserialized.getLastLogLikelihood(), 0.0001);
+
+    assertEquals(onlineViterbi.getRoot(), deserialized.getRoot());
+
+    HmmOnlineViterbi.Node aFirst = onlineViterbi.getTree().getFirst(),
+      bFirst = deserialized.getTree().getFirst();
+
+    assertEquals(onlineViterbi.getTree().getSize(), deserialized.getTree().getSize());
+
+    while (aFirst != null && bFirst != null) {
+      assertEquals(aFirst, bFirst);
+      aFirst = aFirst.next;
+      bFirst = bFirst.next;
+    }
+
+    assertTrue(aFirst == null && bFirst == null);
+  }
+
+  @Test
   public void testCorrectness() {
     //Tests the correctess of the algorithm on the model which could not be decoded online
     List<Integer> input = new ArrayList<Integer>();
@@ -115,8 +162,7 @@ public class HmmOnlineViterbiTest extends MahoutTestCase {
     HmmOnlineViterbi onlineViterbi = new HmmOnlineViterbi(badModel, new Function<int[], Void>() {
       @Override
       public Void apply(int[] input) {
-        for (int i = 0; i < input.length; ++i)
-          decoded.add(input[i]);
+        for (int anInput : input) decoded.add(anInput);
         return null;
       }
     });
@@ -127,7 +173,6 @@ public class HmmOnlineViterbiTest extends MahoutTestCase {
 
     assertEquals(offlineDecoded.length, decoded.size());
 
-    //assertArrayEquals(HmmEvaluator.decode(badModel, observations, true), decodedArray);
     assertTrue(Math.abs(Math.exp(logLikelihood) - HmmEvaluator.modelLikelihood(badModel, badObservations, true)) < likelihoodEpsilon);
   }
 }

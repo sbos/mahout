@@ -20,6 +20,8 @@ package org.apache.mahout.classifier.sequencelearning.hmm;
 import com.google.common.base.Function;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import org.apache.commons.collections.iterators.ArrayIterator;
+import org.apache.commons.lang.NullArgumentException;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.Writable;
 import org.apache.mahout.classifier.sequencelearning.hmm.mapreduce.HiddenStateProbabilitiesWritable;
@@ -27,8 +29,10 @@ import org.apache.mahout.classifier.sequencelearning.hmm.mapreduce.HiddenStatePr
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.Set;
 
 /**
  * Online Viterbi algorithm implementation which could decode hidden variable sequence from the given
@@ -48,13 +52,17 @@ public class HmmOnlineViterbi implements Writable {
   private double lastLikelihood;
   private Function<int[], Void> output;
 
+  public HmmOnlineViterbi() {
+    backpointers = new LinkedList<int[]>();
+  }
+
   /**
    * Initializes state of the algorithm with the given Hidden Markov Model
    * @param model
    */
   public HmmOnlineViterbi(HmmModel model) {
+    this();
     this.model = model;
-    clear();
   }
 
   /**
@@ -67,12 +75,39 @@ public class HmmOnlineViterbi implements Writable {
     setOutput(output);
   }
 
+  public int getPosition() {
+    return i;
+  }
+
+  public Node getRoot() {
+    return root;
+  }
+
+  public Iterable<Node> getLeaves() {
+    return new Iterable<Node>() {
+      @Override
+      public Iterator<Node> iterator() {
+        return new ArrayIterator(leaves);
+      }
+    };
+  }
+
+  public Tree getTree() {
+    return tree;
+  }
+
   public void setOutput(Function<int[], Void> output) {
     this.output = output;
   }
 
   public HmmModel getModel() {
     return model;
+  }
+
+  public void setModel(HmmModel model) {
+    if (model == null)
+      throw new NullArgumentException("model");
+    this.model = model;
   }
 
   /**
@@ -89,9 +124,13 @@ public class HmmOnlineViterbi implements Writable {
    * @param observations
    */
   public void process(Iterable<Integer> observations) {
+    if (model == null)
+      throw new IllegalStateException("HmmModel was not initialized before decoding");
+
     Iterator<Integer> iterator = observations.iterator();
 
-    if (probs == null) {
+    if (i == 0) {
+      clear();
       probs = getInitialProbabilities(model, iterator.next());
       i = 1;
     }
@@ -164,7 +203,7 @@ public class HmmOnlineViterbi implements Writable {
    */
   public double finish() {
     int maxState = 0;
-    for (int k = 1; k < model.getNrOfHiddenStates(); ++k) {
+    for (int k = 1; k < probs.length; ++k) {
       if (probs[k] > probs[maxState])
         maxState = k;
     }
@@ -172,7 +211,7 @@ public class HmmOnlineViterbi implements Writable {
     traceback(backpointers.size(), maxState, true);
 
     double result = probs[maxState];
-    clear();
+    i = 0;
     return result;
   }
 
@@ -192,9 +231,14 @@ public class HmmOnlineViterbi implements Writable {
   }
 
   static int mapNode(BiMap<Node, Integer> map, Node node) {
+    if (node == null)
+      return -1;
     Integer index = map.get(node);
-    if (index == null)
-      index = map.put(node, map.size());
+    if (index == null) {
+      index = map.size();
+      map.put(node, index);
+      return index;
+    }
     return index;
   }
 
@@ -203,23 +247,21 @@ public class HmmOnlineViterbi implements Writable {
     HiddenStateProbabilitiesWritable probs = new HiddenStateProbabilitiesWritable(this.probs);
     probs.write(output);
 
-    output.write(backpointers.size());
+    output.writeInt(backpointers.size());
+    output.writeInt(leaves.length);
     for (int[] optimalStates: backpointers) {
       for (int state: optimalStates) {
-        output.write(state);
+        output.writeInt(state);
       }
     }
 
-    output.write(i);
+    output.writeInt(i);
     DoubleWritable doubleWritable = new DoubleWritable(lastLikelihood);
     doubleWritable.write(output);
 
     //serializing compressed backpointers tree
     //3 * |H| - 2 is the upper bound of node number
-    HashBiMap<Node, Integer> nodeMap = HashBiMap.create(3 * model.getNrOfHiddenStates() - 2);
-    mapNode(nodeMap, root);
-    for (Node leave: leaves)
-      mapNode(nodeMap, leave);
+    HashBiMap<Node, Integer> nodeMap = HashBiMap.create(3 * leaves.length - 2);
 
     Node node = tree.first;
     while (node != null) {
@@ -227,27 +269,40 @@ public class HmmOnlineViterbi implements Writable {
       node = node.next;
     }
 
-    output.write(nodeMap.size());
-    for (Node entry: nodeMap.keySet())
-      entry.write(nodeMap, output);
-
-    root.write(nodeMap, output);
-    output.write(tree.size);
+    mapNode(nodeMap, root);
     for (Node leave: leaves)
-      leave.write(nodeMap, output);
+      mapNode(nodeMap, leave);
+
+    HashSet<Node> alreadyWritten = new HashSet<Node>();
+
+    output.writeInt(nodeMap.size());
+    for (Node entry: nodeMap.keySet())
+      Node.write(nodeMap, alreadyWritten, entry, output);
+
+    output.writeInt(tree.size);
+    node = tree.first;
+    while (node != null) {
+      Node.write(nodeMap, alreadyWritten, node, output);
+      node = node.next;
+    }
+
+    Node.write(nodeMap, alreadyWritten, root, output);
+
+    for (Node leave: leaves)
+      Node.write(nodeMap, alreadyWritten, leave, output);
   }
 
   @Override
   public void readFields(DataInput input) throws IOException {
-    clear();
-
     HiddenStateProbabilitiesWritable probs = new HiddenStateProbabilitiesWritable();
     probs.readFields(input);
     this.probs = probs.toProbabilityArray();
 
+    backpointers = new LinkedList<int[]>();
     int backpointersSize = input.readInt();
+    int stateNumber = input.readInt();
     for (int i = 0; i < backpointersSize; ++i) {
-      int[] optimalStates = new int[model.getNrOfHiddenStates()];
+      int[] optimalStates = new int[stateNumber];
       for (int j = 0; j < optimalStates.length; ++j)
         optimalStates[j] = input.readInt();
       backpointers.addLast(optimalStates);
@@ -263,21 +318,24 @@ public class HmmOnlineViterbi implements Writable {
     for (int i = 0; i < mapSize; ++i)
       Node.read(nodeMap, input);
 
+    tree = new Tree();
+    int treeSize = input.readInt();
+    for (int i = 0; i < treeSize; ++i)
+      tree.addLast(Node.read(nodeMap, input));
+
     root = Node.read(nodeMap, input);
+
+    leaves = new Node[stateNumber];
     for (int i = 0; i < leaves.length; ++i)
       leaves[i] = Node.read(nodeMap, input);
-
-    tree.size = input.readInt();
-    for (int i = 0; i < tree.size; ++i)
-      tree.addLast(Node.read(nodeMap, input));
   }
 
   static class Node {
-    public int position, state;
-    public Node parent;
-    public Node next;
-    public Node previous;
-    public int childNumber;
+    int position, state;
+    Node parent;
+    Node next;
+    Node previous;
+    int childNumber;
 
     public Node() {
       position = state = -1;
@@ -287,19 +345,37 @@ public class HmmOnlineViterbi implements Writable {
       childNumber = 0;
     }
 
-    public int write(BiMap<Node, Integer> map, DataOutput output) throws IOException {
-      Integer index = map.get(this);
-      if (index == null) {
-        output.writeBoolean(true);
-        index = map.put(this, map.size());
-        output.write(index);
-        output.write(position);
-        output.write(state);
-        output.write(childNumber);
-        parent.write(map, output);
-      } else {
+    public Node getNext() {
+      return next;
+    }
+
+    public Node getPrevious() {
+      return previous;
+    }
+
+    public Node getParent() {
+      return parent;
+    }
+
+    public static int write(BiMap<Node, Integer> map, Set<Node> written, Node node, DataOutput output) throws IOException {
+      if (node == null) {
         output.writeBoolean(false);
-        output.write(index);
+        output.writeInt(-1);
+        return -1;
+      }
+      int index = map.get(node);
+      if (!written.contains(node)) {
+        output.writeBoolean(true);
+        output.writeInt(index);
+        output.writeInt(node.position);
+        output.writeInt(node.state);
+        output.writeInt(node.childNumber);
+        written.add(node);
+        write(map, written, node.parent, output);
+      }
+      else {
+        output.writeBoolean(false);
+        output.writeInt(index);
       }
 
       return index;
@@ -313,9 +389,13 @@ public class HmmOnlineViterbi implements Writable {
         node.position = input.readInt();
         node.state = input.readInt();
         node.childNumber = input.readInt();
-        node.parent = map.inverse().get(input.readInt());
+        map.put(node, index);
+        node.parent = read(map, input);
         return node;
       }
+      if (index == -1)
+        return null;
+
       return map.inverse().get(index);
     }
 
@@ -326,15 +406,37 @@ public class HmmOnlineViterbi implements Writable {
       if (this.parent != null)
         ++this.parent.childNumber;
     }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (obj instanceof Node) {
+        Node node = (Node)obj;
+        return (position == node.position) && (state == node.state) && (childNumber == node.childNumber)
+          && (parent != null ? parent.equals(parent) : node.parent == null);
+      }
+      return false;
+    }
   }
 
-  static class Tree {
+  public static class Tree {
     Node first, last;
     int size;
 
     public Tree() {
       first = null;
       size = 0;
+    }
+
+    public int getSize() {
+      return size;
+    }
+
+    public Node getFirst() {
+      return first;
+    }
+
+    public Node getLast() {
+      return last;
     }
 
     public void addLast(Node node) {

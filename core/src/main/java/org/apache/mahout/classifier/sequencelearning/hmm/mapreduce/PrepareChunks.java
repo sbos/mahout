@@ -30,7 +30,10 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.PathFilter;
-import org.apache.hadoop.io.*;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.SequenceFile;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.Writable;
 import org.apache.mahout.common.CommandLineUtil;
 import org.apache.mahout.math.VarIntWritable;
 import org.slf4j.Logger;
@@ -92,7 +95,7 @@ public final class PrepareChunks {
         PrintWriter writer = new PrintWriter(outputStream);
 
         int chunkNumber = 0;
-        HiddenSequenceWritable chunk = new HiddenSequenceWritable();
+        HiddenSequenceWritable decoded = new HiddenSequenceWritable();
 
         while (true) {
           Path chunkPath = new Path(input, String.valueOf(chunkNumber));
@@ -100,17 +103,22 @@ public final class PrepareChunks {
             break;
 
           log.info("Reading " + input + ", chunk number " + chunkNumber);
-          FSDataInputStream inputStream = inputFs.open(chunkPath);
-          chunk.readFields(inputStream);
+          FileSystem fs = FileSystem.get(chunkPath.toUri(), configuration);
+          SequenceFile.Reader reader = new SequenceFile.Reader(fs, chunkPath, configuration);
 
-          for (Writable element: chunk.get()) {
-            VarIntWritable state = (VarIntWritable)element;
-            writer.print(state.get());
-            writer.print(' ');
+          IntWritable chunk = new IntWritable();
+          while (reader.next(chunk)) {
+            reader.getCurrentValue(decoded);
+
+            for (Writable element: decoded.get()) {
+              VarIntWritable state = (VarIntWritable)element;
+              writer.print(state.get());
+              writer.print(' ');
+            }
           }
 
           ++chunkNumber;
-          inputStream.close();
+          reader.close();
         }
 
         writer.close();
@@ -183,7 +191,7 @@ public final class PrepareChunks {
           log.info("Splitting " + inputName + ", chunk #" + currentChunk);
 
           ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
-            observationsRead, currentChunk);
+            observationsRead, currentChunk, !scanner.hasNextInt());
 
           log.info(observationsRead + " observations to write to this chunk");
           outputs.get(currentChunk).append(new Text(inputPath.getName()),

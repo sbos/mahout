@@ -18,9 +18,10 @@
 package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.mahout.math.VarIntWritable;
@@ -113,12 +114,14 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
         @Override
         public void handle(VarIntWritable[] decoded) throws IOException, InterruptedException {
           FileSystem fs = FileSystem.get(URI.create(outputPath), configuration);
-          FSDataOutputStream outputStream = fs.create(new Path(outputPath + "/" + key, String.valueOf(chunk)));
+          SequenceFile.Writer writer =  SequenceFile.createWriter(fs, configuration,
+            new Path(outputPath + "/" + key, String.valueOf(chunk)),
+            IntWritable.class, HiddenSequenceWritable.class);
 
-          new HiddenSequenceWritable(path).write(outputStream);
-          outputStream.close();
+          writer.append(new IntWritable(chunk), new HiddenSequenceWritable(path));
 
           context.write(key, new ViterbiDataWritable(path[0].get()));
+          writer.close();
           log.info("new last state: " + path[0].get());
         }
       };
