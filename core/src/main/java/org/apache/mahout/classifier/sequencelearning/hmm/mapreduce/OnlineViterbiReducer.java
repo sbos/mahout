@@ -18,7 +18,6 @@
 package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
 import com.google.common.base.Function;
-import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
@@ -38,7 +37,6 @@ import java.io.DataInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URI;
-import java.util.Iterator;
 
 /**
  * Performs all work for decoding hidden states from given sequence of observed variables for HMM using
@@ -111,21 +109,14 @@ public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Tex
     onlineViterbi.setOutput(new Function<int[], Void>() {
           @Override
           public Void apply(int[] input) {
-            for (int i = 0; i < input.length; ++i)
-              result.add(input[i]);
+            for (int anInput : input) result.add(anInput);
 
             return null;
           }
         });
 
-    final int[] data = observations.getData();
     onlineViterbi.setModel(model);
-    onlineViterbi.process(new Iterable<Integer>() {
-      @Override
-      public Iterator<Integer> iterator() {
-        return new ArrayIterator(data);
-      }
-    });
+    onlineViterbi.process(new IntArrayList(observations.getData()).toList());
 
     if (observations.isLastChunk()) {
       log.info("Processing last chunk for " + key + ". Finishing at " + onlineViterbi.getPosition());
