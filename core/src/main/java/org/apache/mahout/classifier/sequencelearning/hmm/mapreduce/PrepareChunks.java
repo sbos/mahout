@@ -33,9 +33,7 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.Writable;
 import org.apache.mahout.common.CommandLineUtil;
-import org.apache.mahout.math.VarIntWritable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -110,9 +108,8 @@ public final class PrepareChunks {
           while (reader.next(chunk)) {
             reader.getCurrentValue(decoded);
 
-            for (Writable element: decoded.get()) {
-              VarIntWritable state = (VarIntWritable)element;
-              writer.print(state.get());
+            for (int state: decoded.get()) {
+              writer.print(state);
               writer.print(' ');
             }
           }

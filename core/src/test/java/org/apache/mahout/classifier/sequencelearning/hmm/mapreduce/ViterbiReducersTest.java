@@ -24,7 +24,6 @@ import org.apache.mahout.classifier.sequencelearning.hmm.HmmEvaluator;
 import org.apache.mahout.classifier.sequencelearning.hmm.HmmModel;
 import org.apache.mahout.common.MahoutTestCase;
 import org.apache.mahout.math.DenseVector;
-import org.apache.mahout.math.VarIntWritable;
 import org.easymock.EasyMock;
 import org.junit.Test;
 
@@ -74,7 +73,7 @@ public class ViterbiReducersTest extends MahoutTestCase {
     reducer.setModel(model);
 
     List<ViterbiDataWritable> forwardInput = new ArrayList<ViterbiDataWritable>();
-    forwardInput.add(ViterbiDataWritable.fromObservedSequence(new ObservedSequenceWritable(observations, 0)));
+    forwardInput.add(ViterbiDataWritable.fromObservedSequence(new ObservedSequenceWritable(observations, 0, true)));
 
     reducer.setResultHandler(new ForwardViterbiReducer.ResultHandler() {
       @Override
@@ -100,9 +99,9 @@ public class ViterbiReducersTest extends MahoutTestCase {
         backwardReducer.setResultHandler(new BackwardViterbiReducer.ResultHandler() {
 
           @Override
-          public void handle(VarIntWritable[] reducerDecoded) throws IOException {
+          public void handle(int[] reducerDecoded) throws IOException {
             for (int i = 0; i < reducerDecoded.length; ++i) {
-              assertEquals(reducerDecoded[i].get(), decoded[i]);
+              assertEquals(reducerDecoded[i], decoded[i]);
             }
           }
         });

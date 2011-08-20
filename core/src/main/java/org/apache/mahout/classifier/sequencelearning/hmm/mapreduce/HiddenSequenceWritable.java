@@ -17,21 +17,59 @@
 
 package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
-import org.apache.hadoop.io.ArrayWritable;
+import org.apache.hadoop.io.Writable;
 import org.apache.mahout.math.VarIntWritable;
+import org.apache.mahout.math.list.AbstractIntList;
+import org.apache.mahout.math.list.IntArrayList;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 
 /**
  * Class for modeling sequence of decoded hidden variables
  * It's used to write the output of {@link ParallelViterbiDriver} tasks
  * Actually {@link BackwardViterbiReducer} writes them as the side effect
  */
-public class HiddenSequenceWritable extends ArrayWritable {
+public class HiddenSequenceWritable implements Writable {
+  private AbstractIntList sequence;
+
   public HiddenSequenceWritable() {
-    super(VarIntWritable.class);
+    sequence = new IntArrayList();
   }
 
-  public HiddenSequenceWritable(VarIntWritable[] sequence) {
-    this();
-    set(sequence);
+  public HiddenSequenceWritable(int[] sequence) {
+    this.sequence = new IntArrayList(sequence);
+  }
+
+  public HiddenSequenceWritable(AbstractIntList list) {
+    sequence = list;
+  }
+
+  @Override
+  public void write(DataOutput output) throws IOException {
+    if (sequence == null)
+      throw new IllegalStateException("Sequence was not initialized");
+    output.writeInt(sequence.size());
+    VarIntWritable n = new VarIntWritable();
+    for (int state: sequence.elements()) {
+      n.set(state);
+      n.write(output);
+    }
+  }
+
+  @Override
+  public void readFields(DataInput dataInput) throws IOException {
+    int[] sequence = new int[dataInput.readInt()];
+    VarIntWritable n = new VarIntWritable();
+    for (int i = 0; i < sequence.length; ++i) {
+      n.readFields(dataInput);
+      sequence[i] = n.get();
+    }
+    this.sequence = new IntArrayList(sequence);
+  }
+
+  public int[] get() {
+    return sequence.elements();
   }
 }

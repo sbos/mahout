@@ -30,7 +30,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.mahout.classifier.sequencelearning.hmm.HmmModel;
 import org.apache.mahout.classifier.sequencelearning.hmm.HmmOnlineViterbi;
 import org.apache.mahout.classifier.sequencelearning.hmm.LossyHmmSerializer;
-import org.apache.mahout.math.VarIntWritable;
+import org.apache.mahout.math.list.IntArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,19 +107,13 @@ public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Tex
     final SequenceFile.Writer writer = SequenceFile.createWriter(fs, context.getConfiguration(),
       new Path(outputPath + "/" + key, Integer.toString(chunkNumber)), IntWritable.class, HiddenSequenceWritable.class);
 
-
+    final IntArrayList result = new IntArrayList(observations.getLength());
     onlineViterbi.setOutput(new Function<int[], Void>() {
           @Override
           public Void apply(int[] input) {
-            try {
-              //TODO: not efficient to have a copy of decoded array
-              VarIntWritable[] decoded = new VarIntWritable[input.length];
-              for (int i = 0; i < input.length; ++i)
-                decoded[i] = new VarIntWritable(input[i]);
-              writer.append(new IntWritable(chunkNumber), new HiddenSequenceWritable(decoded));
-            } catch (IOException e) {
-              log.error("An error occurred while writing output", e);
-            }
+            for (int i = 0; i < input.length; ++i)
+              result.add(input[i]);
+
             return null;
           }
         });
@@ -139,6 +133,8 @@ public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Tex
     }
     else
       context.write(key, new ViterbiDataWritable(onlineViterbi));
+
+    writer.append(new IntWritable(chunkNumber), new HiddenSequenceWritable(result));
     writer.close();
   }
 }

@@ -42,7 +42,7 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
   private static final Logger log = LoggerFactory.getLogger(BackwardViterbiReducer.class);
 
   public static interface ResultHandler {
-    public void handle(VarIntWritable[] decoded) throws IOException, InterruptedException;
+    public void handle(int[] decoded) throws IOException, InterruptedException;
   }
 
   private ResultHandler resultHandler;
@@ -101,10 +101,10 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
 
     log.info("last state: " + lastState);
     int chunkLength = backpointers.length + 1;
-    final VarIntWritable[] path = new VarIntWritable[chunkLength];
-    path[chunkLength - 1] = new VarIntWritable(lastState);
+    final int[] path = new int[chunkLength];
+    path[chunkLength - 1] = lastState;
     for (int i = chunkLength-2; i >= 0; --i) {
-      path[i] = new VarIntWritable(backpointers[i][path[i+1].get()]);
+      path[i] = backpointers[i][path[i+1]];
     }
 
     final String outputPath = this.path;
@@ -112,7 +112,7 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
     if (resultHandler == null) {
       resultHandler = new ResultHandler() {
         @Override
-        public void handle(VarIntWritable[] decoded) throws IOException, InterruptedException {
+        public void handle(int[] decoded) throws IOException, InterruptedException {
           FileSystem fs = FileSystem.get(URI.create(outputPath), configuration);
           SequenceFile.Writer writer =  SequenceFile.createWriter(fs, configuration,
             new Path(outputPath + "/" + key, String.valueOf(chunk)),
@@ -120,9 +120,9 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
 
           writer.append(new IntWritable(chunk), new HiddenSequenceWritable(path));
 
-          context.write(key, new ViterbiDataWritable(path[0].get()));
+          context.write(key, new ViterbiDataWritable(path[0]));
           writer.close();
-          log.info("new last state: " + path[0].get());
+          log.info("new last state: " + path[0]);
         }
       };
     }
