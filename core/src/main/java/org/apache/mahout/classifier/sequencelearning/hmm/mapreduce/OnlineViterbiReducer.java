@@ -26,6 +26,7 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.classifier.sequencelearning.hmm.HmmModel;
 import org.apache.mahout.classifier.sequencelearning.hmm.HmmOnlineViterbi;
 import org.apache.mahout.classifier.sequencelearning.hmm.LossyHmmSerializer;
@@ -127,5 +128,9 @@ public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Tex
 
     writer.append(new IntWritable(chunkNumber), new HiddenSequenceWritable(result));
     writer.close();
+  }
+
+  public static void main(String[] args) throws Exception {
+    System.exit(ToolRunner.run(new Configuration(), new OnlineViterbiDriver(), args));
   }
 }

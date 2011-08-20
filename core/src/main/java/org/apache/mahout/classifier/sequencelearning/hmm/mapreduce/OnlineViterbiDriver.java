@@ -26,6 +26,7 @@ import org.apache.commons.cli2.builder.DefaultOptionBuilder;
 import org.apache.commons.cli2.builder.GroupBuilder;
 import org.apache.commons.cli2.commandline.Parser;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -37,6 +38,8 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.common.CommandLineUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,68 +47,18 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.net.URI;
 
-public class OnlineViterbiDriver {
+public class OnlineViterbiDriver extends Configured implements Tool {
   private String inputs;
   private String output, intermediate, model;
-  private Configuration configuration;
 
-  private static Logger logger = LoggerFactory.getLogger(ParallelViterbiDriver.class);
+  private static Logger logger = LoggerFactory.getLogger(OnlineViterbiDriver.class);
 
-  private OnlineViterbiDriver(String inputs, String output, String intermediate, String model) {
-    this.inputs = inputs;
-    this.output = output;
-    this.intermediate = intermediate;
-    this.model = model;
-
-    configuration = new Configuration();
-  }
-
-  public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
-    DefaultOptionBuilder optionBuilder = new DefaultOptionBuilder();
-    ArgumentBuilder argumentBuilder = new ArgumentBuilder();
-
-    Option inputOption = optionBuilder.withLongName("input").
-      withShortName("i").withRequired(true).
-      withArgument(argumentBuilder.withMinimum(1).withMaximum(1).withName("path").create()).create();
-
-    Option outputOption = optionBuilder.withLongName("output").
-      withShortName("o").withRequired(true).
-      withArgument(argumentBuilder.withMinimum(1).withMaximum(1).
-        withName("path").create()).create();
-
-    Option modelOption = optionBuilder.withLongName("model").
-      withShortName("m").withRequired(true).
-      withArgument(argumentBuilder.withMinimum(1).withMaximum(1).
-        withName("path").create()).withDescription("Serialized HMM model").create();
-
-    Option intermediateOption = optionBuilder.withLongName("intermediate").
-      withShortName("im").withRequired(true).
-      withArgument(argumentBuilder.withMinimum(1).withMaximum(1).
-        withName("path").withDefault("/tmp").create()).create();
-
-    Group options = new GroupBuilder().withOption(inputOption).
-      withOption(outputOption).withOption(intermediateOption).
-      withOption(modelOption).withName("Options").create();
-
-    try {
-      Parser parser = new Parser();
-      parser.setGroup(options);
-      CommandLine commandLine = parser.parse(args);
-
-      String inputs = (String) commandLine.getValue(inputOption);
-      String output = (String) commandLine.getValue(outputOption);
-      String intermediate = (String) commandLine.getValue(intermediateOption);
-      String modelPath = (String) commandLine.getValue(modelOption);
-
-      OnlineViterbiDriver driver = new OnlineViterbiDriver(inputs, output, intermediate, modelPath);
-      driver.runForward();
-    } catch (OptionException e) {
-      CommandLineUtil.printHelp(options);
-    }
+  public static void main(String[] args) throws Exception {
+    System.exit(ToolRunner.run(new Configuration(), new OnlineViterbiDriver(), args));
   }
 
   private int getChunkCount() throws IOException {
-    FileSystem fs = FileSystem.get(URI.create(inputs), configuration);
+    FileSystem fs = FileSystem.get(URI.create(inputs), getConf());
     Path path = new Path(inputs);
     return fs.listStatus(path).length;
   }
@@ -119,7 +72,7 @@ public class OnlineViterbiDriver {
 
     for (int i = 0; i < getChunkCount(); ++i) {
       logger.info("Processing chunk " + (i+1) + "/" + getChunkCount());
-      Job job = new Job(configuration, "online-viterbi-" + i);
+      Job job = new Job(getConf(), "online-viterbi-" + i);
       job.setMapperClass(Mapper.class);
       job.setReducerClass(OnlineViterbiReducer.class);
       job.setInputFormatClass(SequenceFileInputFormat.class);
@@ -154,5 +107,52 @@ public class OnlineViterbiDriver {
       job.submit();
       job.waitForCompletion(true);
     }
+  }
+
+  @Override
+  public int run(String[] strings) throws Exception {
+    DefaultOptionBuilder optionBuilder = new DefaultOptionBuilder();
+    ArgumentBuilder argumentBuilder = new ArgumentBuilder();
+
+    Option inputOption = optionBuilder.withLongName("input").
+      withShortName("i").withRequired(true).
+      withArgument(argumentBuilder.withMinimum(1).withMaximum(1).withName("path").create()).create();
+
+    Option outputOption = optionBuilder.withLongName("output").
+      withShortName("o").withRequired(true).
+      withArgument(argumentBuilder.withMinimum(1).withMaximum(1).
+        withName("path").create()).create();
+
+    Option modelOption = optionBuilder.withLongName("model").
+      withShortName("m").withRequired(true).
+      withArgument(argumentBuilder.withMinimum(1).withMaximum(1).
+        withName("path").create()).withDescription("Serialized HMM model").create();
+
+    Option intermediateOption = optionBuilder.withLongName("intermediate").
+      withShortName("im").withRequired(true).
+      withArgument(argumentBuilder.withMinimum(1).withMaximum(1).
+        withName("path").withDefault("/tmp").create()).create();
+
+    Group options = new GroupBuilder().withOption(inputOption).
+      withOption(outputOption).withOption(intermediateOption).
+      withOption(modelOption).withName("Options").create();
+
+    try {
+      Parser parser = new Parser();
+      parser.setGroup(options);
+      CommandLine commandLine = parser.parse(strings);
+
+      inputs = (String) commandLine.getValue(inputOption);
+      output = (String) commandLine.getValue(outputOption);
+      intermediate = (String) commandLine.getValue(intermediateOption);
+      model = (String) commandLine.getValue(modelOption);
+
+      runForward();
+    } catch (OptionException e) {
+      CommandLineUtil.printHelp(options);
+      return 1;
+    }
+
+    return 0;
   }
 }

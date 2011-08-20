@@ -26,6 +26,7 @@ import org.apache.commons.cli2.builder.DefaultOptionBuilder;
 import org.apache.commons.cli2.builder.GroupBuilder;
 import org.apache.commons.cli2.commandline.Parser;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -33,6 +34,8 @@ import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
 import org.apache.mahout.common.CommandLineUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,10 +49,11 @@ import java.util.Scanner;
 /**
  * A tool for dividing input sequences to chunks and merging them
  */
-public final class PrepareChunks {
+public final class PrepareChunks extends Configured implements Tool {
   private final static Logger log = LoggerFactory.getLogger(PrepareChunks.class);
 
-  public static void main(String[] args) throws IOException {
+  @Override
+  public int run(String[] args) throws IOException {
     DefaultOptionBuilder optionBuilder = new DefaultOptionBuilder();
     ArgumentBuilder argumentBuilder = new ArgumentBuilder();
 
@@ -80,7 +84,7 @@ public final class PrepareChunks {
       parser.setGroup(group);
       CommandLine commandLine = parser.parse(args);
 
-      Configuration configuration = new Configuration();
+      Configuration configuration = getConf();
 
       if (commandLine.hasOption(unchunkOption)) {
         String input = (String) commandLine.getValue(inputOption);
@@ -144,7 +148,9 @@ public final class PrepareChunks {
       }
     } catch (OptionException e) {
       CommandLineUtil.printHelp(group);
+      return 1;
     }
+    return 0;
   }
 
   static class ChunkSplitter implements PathFilter {
@@ -222,5 +228,9 @@ public final class PrepareChunks {
         output.close();
       }
     }
+  }
+
+  public static void main(String[] args) throws Exception {
+    System.exit(ToolRunner.run(new Configuration(), new PrepareChunks(), args));
   }
 }
