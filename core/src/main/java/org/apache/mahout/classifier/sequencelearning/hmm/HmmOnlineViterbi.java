@@ -20,7 +20,6 @@ package org.apache.mahout.classifier.sequencelearning.hmm;
 import com.google.common.base.Function;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
-import org.apache.commons.collections.iterators.ArrayIterator;
 import org.apache.commons.lang.NullArgumentException;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.Writable;
@@ -29,10 +28,7 @@ import org.apache.mahout.classifier.sequencelearning.hmm.mapreduce.HiddenStatePr
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Online Viterbi algorithm implementation which could decode hidden variable sequence from the given
@@ -84,12 +80,7 @@ public class HmmOnlineViterbi implements Writable {
   }
 
   public Iterable<Node> getLeaves() {
-    return new Iterable<Node>() {
-      @Override
-      public Iterator<Node> iterator() {
-        return new ArrayIterator(leaves);
-      }
-    };
+    return Arrays.asList(leaves);
   }
 
   public Tree getTree() {
