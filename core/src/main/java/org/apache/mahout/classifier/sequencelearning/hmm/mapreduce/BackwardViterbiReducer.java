@@ -114,8 +114,9 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
         @Override
         public void handle(int[] decoded) throws IOException, InterruptedException {
           FileSystem fs = FileSystem.get(URI.create(outputPath), configuration);
+          Path chunkPath = new Path(outputPath + "/" + key, String.valueOf(chunk));
           SequenceFile.Writer writer =  SequenceFile.createWriter(fs, configuration,
-            new Path(outputPath + "/" + key, String.valueOf(chunk)),
+            chunkPath,
             IntWritable.class, HiddenSequenceWritable.class);
 
           writer.append(new IntWritable(chunk), new HiddenSequenceWritable(path));
@@ -123,6 +124,7 @@ class BackwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vi
           context.write(key, new ViterbiDataWritable(path[0]));
           writer.close();
           log.info("new last state: " + path[0]);
+          log.info("Decoded path was written to: " + chunkPath);
         }
       };
     }

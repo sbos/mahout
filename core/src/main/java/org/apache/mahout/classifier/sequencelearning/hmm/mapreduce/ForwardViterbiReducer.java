@@ -74,7 +74,7 @@ class ForwardViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, Vit
 
     if (backpointersPath != null)
       backpointersWriter = SequenceFile.createWriter(intermediateFileSystem,
-        context.getConfiguration(), new Path(backpointersPath, context.getJobID().toString()),
+        context.getConfiguration(), new Path(backpointersPath, context.getTaskAttemptID().toString()),
         Text.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
 
     String hmmModelFileName = configuration.get("hmm.model");

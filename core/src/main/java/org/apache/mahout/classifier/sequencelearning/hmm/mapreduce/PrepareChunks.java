@@ -42,9 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 
 /**
  * A tool for dividing input sequences to chunks and merging them
@@ -144,7 +142,7 @@ public final class PrepareChunks extends Configured implements Tool {
           inputFS.listStatus(inputPath, chunkSplitter);
         }
 
-        chunkSplitter.close();
+        //chunkSplitter.close();
       }
     } catch (OptionException e) {
       CommandLineUtil.printHelp(group);
@@ -158,7 +156,8 @@ public final class PrepareChunks extends Configured implements Tool {
     Path outputPath;
     Configuration configuration;
     FileSystem outputFileSystem;
-    List<SequenceFile.Writer> outputs = new ArrayList<SequenceFile.Writer>();
+    Map<String, List<SequenceFile.Writer>> outputs = new HashMap<String, List<SequenceFile.Writer>>();
+    //List<SequenceFile.Writer> outputs = new ArrayList<SequenceFile.Writer>();
 
     public ChunkSplitter(int chunkSize, Path outputPath, Configuration configuration) throws IOException {
       this.chunkSize = chunkSize;
@@ -184,21 +183,31 @@ public final class PrepareChunks extends Configured implements Tool {
         }
 
         if (observationsRead > 0) {
-          if (outputs.size() <= currentChunk) {
-            log.debug("Opening new sequence file for chunk #" + currentChunk);
-            SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
-              new Path(outputPath, ((Integer)currentChunk).toString()),
-              Text.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
-            outputs.add(writer);
+          List<SequenceFile.Writer> chunkWriters = outputs.get(inputPath.toString());
+          if (chunkWriters == null) {
+            chunkWriters = new LinkedList<SequenceFile.Writer>();
+            outputs.put(inputPath.toString(), chunkWriters);
           }
-          log.info("Splitting " + inputName + ", chunk #" + currentChunk);
+          if (chunkWriters.size() <= currentChunk) {
+            log.debug("Opening new sequence file for chunk #" + currentChunk);
+            Path chunkPath = new Path(outputPath, String.valueOf(currentChunk));
+            if (!fs.exists(chunkPath)) fs.mkdirs(chunkPath);
+            SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
+              new Path(chunkPath, inputPath.getName()),
+              Text.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
+            chunkWriters.add(writer);
 
-          ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
-            observationsRead, currentChunk, !scanner.hasNextInt());
+            log.info("Splitting " + inputName + ", chunk #" + currentChunk);
 
-          log.info(observationsRead + " observations to write to this chunk");
-          outputs.get(currentChunk).append(new Text(inputPath.getName()),
-            ViterbiDataWritable.fromObservedSequence(chunk));
+            ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
+              observationsRead, currentChunk, !scanner.hasNextInt());
+
+            log.info(observationsRead + " observations to write to this chunk");
+            writer.append(new Text(inputPath.getName()),
+              ViterbiDataWritable.fromObservedSequence(chunk));
+
+            writer.close();
+          }
         }
 
         if (observationsRead < chunkSize)
@@ -223,11 +232,11 @@ public final class PrepareChunks extends Configured implements Tool {
       return true;
     }
 
-    public void close() throws IOException {
-      for (SequenceFile.Writer output: outputs) {
-        output.close();
+    /*public void close() throws IOException {
+      for (List<SequenceFile.Writer> chunkWrites: outputs.values()) {
+        for (SequenceFile.Writer)
       }
-    }
+    }*/
   }
 
   public static void main(String[] args) throws Exception {
