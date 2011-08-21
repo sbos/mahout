@@ -183,6 +183,7 @@ for f in $MAHOUT_HOME/examples/target/mahout-examples-*-job.jar $MAHOUT_HOME/mah
 done
 
 # run it
+
 if [ "$HADOOP_HOME" = "" ] || [ "$MAHOUT_LOCAL" != "" ] ; then
   if [ "$HADOOP_HOME" = "" ] ; then
     echo "no HADOOP_HOME set, running locally"
