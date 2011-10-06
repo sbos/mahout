@@ -26,9 +26,11 @@ import org.apache.mahout.math.VarIntWritable;
  * Generic Writable wrapper for multiple inputs that could be used by
  * @see org.apache.mahout.classifier.sequencelearning.hmm.mapreduce.BackwardViterbiReducer and
  * @see org.apache.mahout.classifier.sequencelearning.hmm.mapreduce.ForwardViterbiReducer
+ *
+ * That's internal class and it should not be used by Mahout's users.
  */
 class ViterbiDataWritable extends GenericWritable {
-  static Class[] classes = new Class[] {
+  static Class[] wrappedClasses = new Class[] {
     ObservedSequenceWritable.class,
     HiddenStateProbabilitiesWritable.class,
     VarIntWritable.class, BackpointersWritable.class,
@@ -65,6 +67,6 @@ class ViterbiDataWritable extends GenericWritable {
 
   @Override
   protected Class<? extends Writable>[] getTypes() {
-    return classes;
+    return wrappedClasses;
   }
 }

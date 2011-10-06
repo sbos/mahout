@@ -17,7 +17,7 @@
 
 package org.apache.mahout.classifier.sequencelearning.hmm.mapreduce;
 
-import org.apache.commons.lang.NullArgumentException;
+import com.google.common.base.Preconditions;
 import org.apache.hadoop.io.BooleanWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.WritableComparable;
@@ -79,8 +79,8 @@ public class ObservedSequenceWritable implements WritableComparable<ObservedSequ
   }
 
   public void setData(int[] data) {
-    if (data == null)
-      throw new NullArgumentException("data");
+    Preconditions.checkNotNull(data);
+
     this.data = data;
     this.length = data.length;
   }

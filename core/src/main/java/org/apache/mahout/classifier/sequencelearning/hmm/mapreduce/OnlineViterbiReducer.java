@@ -41,7 +41,13 @@ import java.net.URI;
 
 /**
  * Performs all work for decoding hidden states from given sequence of observed variables for HMM using
- * {@link HmmOnlineViterbi} functionality
+ * {@link HmmOnlineViterbi} functionality.
+ *
+ * The logic is similar to {@link ForwardViterbiReducer} (since it's online algorithm there's only
+ * forward pass). The reducer takes current chunk of observed variables and algorithm state from the previous step
+ * and produces new algorithm state after decoding at the output.
+ * Decoded sequence of hidden variables (possibly empty sequence if nothing could be decoded at the moment) is written
+ * in the sequence file in the background.
  */
 public class OnlineViterbiReducer extends Reducer<Text, ViterbiDataWritable, Text, ViterbiDataWritable> {
   private String outputPath;

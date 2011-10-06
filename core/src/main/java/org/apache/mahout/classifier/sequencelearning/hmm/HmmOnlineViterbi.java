@@ -34,7 +34,7 @@ import java.util.*;
  * Online Viterbi algorithm implementation which could decode hidden variable sequence from the given
  * sequence of observed variables as soon as some part of input sequence could be decoded. In some cases
  * this algorithm may perform at the constant space and asymptotically same time as the normal Viterbi
- * Based on Rastislav Sramek's master thesis
+ * Based on "Rastislav Sramek. The Online Viterbi algorithm (Master's Thesis). 2007".
  * @see HmmEvaluator
  */
 public class HmmOnlineViterbi implements Writable {

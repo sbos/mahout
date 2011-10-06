@@ -91,37 +91,51 @@ public final class PrepareChunks extends Configured implements Tool {
         FileSystem inputFs = FileSystem.get(URI.create(input), configuration);
         FileSystem outputFs = FileSystem.get(URI.create(output), configuration);
 
-        OutputStream outputStream = outputFs.create(new Path(output));
-        PrintWriter writer = new PrintWriter(outputStream);
+        OutputStream outputStream = null;
+        try {
+          outputStream = outputFs.create(new Path(output));
+          PrintWriter writer = new PrintWriter(outputStream);
 
-        int chunkNumber = 0;
-        HiddenSequenceWritable decoded = new HiddenSequenceWritable();
+          int chunkNumber = 0;
+          HiddenSequenceWritable decoded = new HiddenSequenceWritable();
 
-        while (true) {
-          Path chunkPath = new Path(input, String.valueOf(chunkNumber));
-          if (!inputFs.exists(chunkPath))
-            break;
+          while (true) {
+            Path chunkPath = new Path(input, String.valueOf(chunkNumber));
+            if (!inputFs.exists(chunkPath))
+              break;
 
-          log.info("Reading " + input + ", chunk number " + chunkNumber);
-          FileSystem fs = FileSystem.get(chunkPath.toUri(), configuration);
-          SequenceFile.Reader reader = new SequenceFile.Reader(fs, chunkPath, configuration);
+            log.info("Reading " + input + ", chunk number " + chunkNumber);
+            FileSystem fs = FileSystem.get(chunkPath.toUri(), configuration);
+            SequenceFile.Reader reader = null;
 
-          IntWritable chunk = new IntWritable();
-          while (reader.next(chunk)) {
-            reader.getCurrentValue(decoded);
+            try {
+              reader = new SequenceFile.Reader(fs, chunkPath, configuration);
 
-            for (int state: decoded.get()) {
-              writer.print(state);
-              writer.print(' ');
+              IntWritable chunk = new IntWritable();
+              while (reader.next(chunk)) {
+                reader.getCurrentValue(decoded);
+
+                for (int state: decoded.get()) {
+                  writer.print(state);
+                  writer.print(' ');
+                }
+              }
             }
+            finally {
+              if (reader != null)
+                reader.close();
+            }
+
+            ++chunkNumber;
+            reader.close();
           }
 
-          ++chunkNumber;
-          reader.close();
+          writer.close();
         }
-
-        writer.close();
-        outputStream.close();
+        finally {
+          if (outputStream != null)
+            outputStream.close();
+        }
 
       } else {
         int chunkSize = Integer.parseInt((String) commandLine.getValue(chunkSizeOption));
@@ -157,7 +171,6 @@ public final class PrepareChunks extends Configured implements Tool {
     Configuration configuration;
     FileSystem outputFileSystem;
     Map<String, List<SequenceFile.Writer>> outputs = new HashMap<String, List<SequenceFile.Writer>>();
-    //List<SequenceFile.Writer> outputs = new ArrayList<SequenceFile.Writer>();
 
     public ChunkSplitter(int chunkSize, Path outputPath, Configuration configuration) throws IOException {
       this.chunkSize = chunkSize;
@@ -169,55 +182,63 @@ public final class PrepareChunks extends Configured implements Tool {
 
     public void process(Path inputPath, FileSystem fs) throws IOException {
       log.info("Splitting " + inputPath.getName() + " to chunks with size " + chunkSize);
-      FSDataInputStream in =  fs.open(inputPath);
+      FSDataInputStream in = null;
       String inputName = inputPath.getName();
-      BufferedReader reader = new BufferedReader(new InputStreamReader(in));
-      Scanner scanner = new Scanner(reader);
 
-      for (int currentChunk = 0; ; ++currentChunk) {
-        int[] chunkObservations = new int[chunkSize];
-        int observationsRead;
-        for (observationsRead = 0;
-             observationsRead < chunkSize && scanner.hasNext(); ++observationsRead) {
-          chunkObservations[observationsRead] = scanner.nextInt();
+      try {
+        in = fs.open(inputPath);
+        BufferedReader reader = new BufferedReader(new InputStreamReader(in));
+        Scanner scanner = new Scanner(reader);
+
+        for (int currentChunk = 0; ; ++currentChunk) {
+          int[] chunkObservations = new int[chunkSize];
+          int observationsRead;
+          for (observationsRead = 0;
+               observationsRead < chunkSize && scanner.hasNext(); ++observationsRead) {
+            chunkObservations[observationsRead] = scanner.nextInt();
+          }
+
+          if (observationsRead > 0) {
+            List<SequenceFile.Writer> chunkWriters = outputs.get(inputPath.toString());
+            if (chunkWriters == null) {
+              chunkWriters = new LinkedList<SequenceFile.Writer>();
+              outputs.put(inputPath.toString(), chunkWriters);
+            }
+            if (chunkWriters.size() <= currentChunk) {
+              log.debug("Opening new sequence file for chunk #" + currentChunk);
+              Path chunkPath = new Path(outputPath, String.valueOf(currentChunk));
+              if (!fs.exists(chunkPath)) fs.mkdirs(chunkPath);
+              SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
+                new Path(chunkPath, inputPath.getName()),
+                Text.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
+              chunkWriters.add(writer);
+
+              log.info("Splitting " + inputName + ", chunk #" + currentChunk);
+
+              ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
+                observationsRead, currentChunk, !scanner.hasNextInt());
+
+              log.info(observationsRead + " observations to write to this chunk");
+              writer.append(new Text(inputPath.getName()),
+                ViterbiDataWritable.fromObservedSequence(chunk));
+
+              writer.close();
+            }
+          }
+
+          if (observationsRead < chunkSize)
+            break;
         }
 
-        if (observationsRead > 0) {
-          List<SequenceFile.Writer> chunkWriters = outputs.get(inputPath.toString());
-          if (chunkWriters == null) {
-            chunkWriters = new LinkedList<SequenceFile.Writer>();
-            outputs.put(inputPath.toString(), chunkWriters);
-          }
-          if (chunkWriters.size() <= currentChunk) {
-            log.debug("Opening new sequence file for chunk #" + currentChunk);
-            Path chunkPath = new Path(outputPath, String.valueOf(currentChunk));
-            if (!fs.exists(chunkPath)) fs.mkdirs(chunkPath);
-            SequenceFile.Writer writer = SequenceFile.createWriter(outputFileSystem, configuration,
-              new Path(chunkPath, inputPath.getName()),
-              Text.class, ViterbiDataWritable.class, SequenceFile.CompressionType.RECORD);
-            chunkWriters.add(writer);
+        scanner.close();
+        reader.close();
 
-            log.info("Splitting " + inputName + ", chunk #" + currentChunk);
-
-            ObservedSequenceWritable chunk = new ObservedSequenceWritable(chunkObservations,
-              observationsRead, currentChunk, !scanner.hasNextInt());
-
-            log.info(observationsRead + " observations to write to this chunk");
-            writer.append(new Text(inputPath.getName()),
-              ViterbiDataWritable.fromObservedSequence(chunk));
-
-            writer.close();
-          }
-        }
-
-        if (observationsRead < chunkSize)
-          break;
+        log.info(inputName + " was splitted successfully");
       }
-
-      scanner.close();
-      reader.close();
-      in.close();
-      log.info(inputName + " was splitted successfully");
+      finally {
+        if (in != null)
+          in.close();
+      }
     }
 
     @Override
@@ -231,12 +252,6 @@ public final class PrepareChunks extends Configured implements Tool {
       }
       return true;
     }
-
-    /*public void close() throws IOException {
-      for (List<SequenceFile.Writer> chunkWrites: outputs.values()) {
-        for (SequenceFile.Writer)
-      }
-    }*/
   }
 
   public static void main(String[] args) throws Exception {
